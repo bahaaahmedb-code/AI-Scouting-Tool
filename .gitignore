@@ -4,6 +4,9 @@
 .env.*
 !**/.env.example
 
+# Vercel local state
+.vercel/
+
 # Python virtual environments & caches
 .venv/
 **/.venv/
@@ -41,3 +44,4 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+

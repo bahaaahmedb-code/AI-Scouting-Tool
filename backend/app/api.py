@@ -36,21 +36,32 @@ STATE: dict = {}
 Position = Literal["D", "M", "F"]
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def _ensure_loaded() -> None:
+    if "store" in STATE:
+        return
     t0 = time.time()
     store = Store.load(settings.artifacts_path)
     STATE["store"] = store
     STATE["chat"] = ChatEngine(store)
     STATE["eval"] = EvalStore(settings.log_path, settings.eval_logging)
     STATE["loaded_s"] = round(time.time() - t0, 2)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _ensure_loaded()
     yield
 
 
 app = FastAPI(title="Moneyball EPL API", version="1.0", lifespan=lifespan)
 app.state.limiter = limiter
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-                   allow_methods=["GET", "POST"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(RateLimitExceeded)
@@ -59,6 +70,7 @@ async def _rate_limited(request: Request, exc: RateLimitExceeded):
 
 
 def S() -> Store:
+    _ensure_loaded()
     return STATE["store"]
 
 
@@ -211,22 +223,25 @@ class GeminiKeyBody(BaseModel):
 
 
 def _persist_env_var(key: str, value: str) -> None:
-    env_path = BACKEND_DIR / ".env"
-    lines: list[str] = []
-    if env_path.exists():
-        lines = env_path.read_text(encoding="utf-8").splitlines()
-    out: list[str] = []
-    replaced = False
-    for ln in lines:
-        if ln.strip().startswith(f"{key}="):
-            if value:
-                out.append(f"{key}={value}")
-            replaced = True
-        else:
-            out.append(ln)
-    if not replaced and value:
-        out.append(f"{key}={value}")
-    env_path.write_text("\n".join(out) + ("\n" if out else ""), encoding="utf-8")
+    try:
+        env_path = BACKEND_DIR / ".env"
+        lines: list[str] = []
+        if env_path.exists():
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+        out: list[str] = []
+        replaced = False
+        for ln in lines:
+            if ln.strip().startswith(f"{key}="):
+                if value:
+                    out.append(f"{key}={value}")
+                replaced = True
+            else:
+                out.append(ln)
+        if not replaced and value:
+            out.append(f"{key}={value}")
+        env_path.write_text("\n".join(out) + ("\n" if out else ""), encoding="utf-8")
+    except OSError:
+        pass
 
 
 @app.get("/api/chat/gemini-status")
@@ -268,6 +283,7 @@ def set_gemini_key(request: Request, body: GeminiKeyBody):
 @app.post("/api/chat")
 @limiter.limit(settings.chat_rate_limit)
 def chat(request: Request, body: ChatBody):
+    _ensure_loaded()
     reply = STATE["chat"].answer(body.message, body.session_id)
     rephrased = False
     llm_model_used = None
@@ -383,6 +399,7 @@ class TaskBody(BaseModel):
 
 @app.post("/api/eval/tasks")
 def eval_tasks(body: TaskBody, ok: bool = Depends(require_code)):
+    _ensure_loaded()
     STATE["eval"].insert("tasks", {**body.model_dump(), "success": int(body.success)})
     return {"saved": True}
 
@@ -394,6 +411,7 @@ class SusBody(BaseModel):
 
 @app.post("/api/eval/sus")
 def eval_sus(body: SusBody, ok: bool = Depends(require_code)):
+    _ensure_loaded()
     try:
         score = sus_score(body.answers)
     except ValueError as e:
@@ -404,6 +422,7 @@ def eval_sus(body: SusBody, ok: bool = Depends(require_code)):
 
 @app.post("/api/eval/chat-tests")
 def eval_chat_tests(ok: bool = Depends(require_code)):
+    _ensure_loaded()
     from .chat_tests import run_chat_tests
     run_id = uuid.uuid4().hex[:8]
     res = run_chat_tests(S())
@@ -415,20 +434,22 @@ def eval_chat_tests(ok: bool = Depends(require_code)):
 
 @app.get("/api/eval/summary")
 def eval_summary(ok: bool = Depends(require_code)):
+    _ensure_loaded()
     return STATE["eval"].summary()
 
 
 @app.get("/api/eval/export/{table}")
 def eval_export(table: Literal["chat_log", "ratings", "tasks", "sus", "chat_tests"], code: str = Query(..., max_length=80)):
+    _ensure_loaded()
     if code != settings.eval_access_code:
         raise HTTPException(401, "Access code required.")
     return PlainTextResponse(STATE["eval"].csv(table), media_type="text/csv",
                              headers={"Content-Disposition": f'attachment; filename="{table}.csv"'})
 
 
-# ------------------------------------------------------------------ frontend (built SPA)
+# ------------------------------------------------------------------ frontend (built SPA, local single-server mode)
 DIST = PROJECT_DIR / "frontend" / "dist"
-if DIST.exists():
+if DIST.exists() and not os.environ.get("VERCEL"):
     app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)

@@ -60,6 +60,8 @@ class Settings:
 
     @property
     def log_path(self) -> Path:
+        if os.environ.get("VERCEL") and self.log_dir == "logs":
+            return Path("/tmp/moneyball_logs")
         return self.path(self.log_dir)
 
     @property

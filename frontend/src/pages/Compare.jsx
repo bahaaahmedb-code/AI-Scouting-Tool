@@ -285,9 +285,9 @@ export default function Compare() {
             {/* Radar view */}
             {activeTab === 'radar' && radar && (
               <div className="card">
-                <h3 className="mb-16">Attribute Radar</h3>
+                <h3 className="mb-16">Attribute Radar (Position Percentile %)</h3>
                 <p className="text-muted mb-24" style={{ fontSize: '0.85rem' }}>
-                  Values are z-scores normalised within each position group. Higher = better relative to peers.
+                  <strong>What is a Percentile?</strong> Each value (0%–100%) shows the percentage of Premier League peers in the same position that a player outperforms (e.g., <strong>90%</strong> = better than 90% of players in their position; <strong>50%</strong> = position average).
                 </p>
                 <RadarChart data={radar} />
               </div>

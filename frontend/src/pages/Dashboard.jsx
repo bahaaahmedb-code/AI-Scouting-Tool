@@ -21,12 +21,9 @@ const POS = [
 const POS_COLOR = { D: '#3b82f6', M: '#10b981', F: '#ef4444' }
 const RADAR_COLORS = ['#3b82f6', '#10b981']
 
-function ordinal(n) {
+function fmtPercentile(n) {
   if (n == null) return '—'
-  const r = Math.round(n)
-  const m = r % 100
-  const suf = (m >= 11 && m <= 13) ? 'th' : r % 10 === 1 ? 'st' : r % 10 === 2 ? 'nd' : r % 10 === 3 ? 'rd' : 'th'
-  return `${r}${suf}`
+  return `${Math.round(n)}%`
 }
 
 function fmtRawStat(axis, v) {
@@ -476,7 +473,7 @@ export default function Dashboard() {
         <Panel
           style={{ marginTop: 24 }}
           title="Player radar (percentile within position)"
-          sub="Pick up to two players to compare. 100 = best in their position. The exact numbers are listed beside the chart."
+          sub="Pick up to two players to compare. 100% = best in their position. Exact percentile percentages and match stats are listed beside the chart."
           controls={
             <div className="flex gap-8 wrap" style={{ alignItems: 'center' }}>
               <Chips options={POS} value={radPos} onChange={changeRadPos} idPrefix="dash-radar-pos" />
@@ -513,7 +510,7 @@ export default function Dashboard() {
                       <tr>
                         {radar.players.flatMap((_, i) => [
                           <th key={`${i}-pct`} style={{ borderLeft: '1px solid var(--c-border)', paddingTop: 4, paddingBottom: 8, fontSize: '0.7rem' }}>
-                            Percentile
+                            Percentile (%)
                           </th>,
                           <th key={`${i}-raw`} style={{ paddingTop: 4, paddingBottom: 8, fontSize: '0.7rem' }}>
                             Actual Stat
@@ -527,7 +524,7 @@ export default function Dashboard() {
                           <td>{axis}</td>
                           {radar.players.flatMap((p, i) => [
                             <td key={`${i}-pct`} style={{ borderLeft: '1px solid var(--c-border)', fontWeight: 700 }}>
-                              {ordinal(p.values[ai])}
+                              {fmtPercentile(p.values[ai])}
                             </td>,
                             <td key={`${i}-raw`} className="text-muted">
                               {fmtRawStat(axis, p.raw?.[ai])}
@@ -539,9 +536,9 @@ export default function Dashboard() {
                   </table>
                 </div>
               )}
-              <p className="text-subtle mt-8" style={{ fontSize: '0.78rem' }}>
-                Percentile (0–100) ranks the player within their position; Actual Stat shows the real match output.
-              </p>
+              <div className="alert alert-info mt-12" style={{ fontSize: '0.81rem', padding: '10px 14px', lineHeight: 1.5 }}>
+                <strong>💡 What is a Percentile?</strong> A percentile shows the <strong>percentage of Premier League peers in the same position</strong> that a player outperforms. For example, <strong>94%</strong> means the player performs better than <strong>94%</strong> of players in their position (<strong>100%</strong> = top in position, <strong>50%</strong> = position average), while <strong>Actual Stat</strong> shows their real on-pitch match output.
+              </div>
             </div>
           </div>
         </Panel>

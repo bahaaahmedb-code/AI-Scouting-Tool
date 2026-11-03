@@ -38,9 +38,18 @@ class EvalStore:
         self.lock = threading.Lock()
         self.path = Path(log_dir) / "moneyball_eval.sqlite"
         if enabled:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            with self._conn() as c:
-                c.executescript(SCHEMA)
+            try:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                with self._conn() as c:
+                    c.executescript(SCHEMA)
+            except OSError:
+                try:
+                    self.path = Path("/tmp/moneyball_logs/moneyball_eval.sqlite")
+                    self.path.parent.mkdir(parents=True, exist_ok=True)
+                    with self._conn() as c:
+                        c.executescript(SCHEMA)
+                except OSError:
+                    self.enabled = False
 
     def _conn(self):
         return sqlite3.connect(self.path)

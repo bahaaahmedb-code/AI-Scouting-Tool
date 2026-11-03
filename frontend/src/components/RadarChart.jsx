@@ -22,18 +22,21 @@ export default function RadarChart({ data }) {
   // Recharts expects [{axis, p0, p1, ...}]
   const chartData = axes.map((axis, i) => {
     const row = { axis }
-    players.forEach((p, pi) => { row[`p${pi}`] = p.values[i] ?? 0 })
+    players.forEach((p, pi) => {
+      const vals = p.values ?? p.percentiles ?? []
+      row[`p${pi}`] = vals[i] ?? 0
+    })
     return row
   })
 
   return (
     <div className="radar-wrap" style={{ width: '100%', height: 380 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <ReRadar data={chartData} cx="50%" cy="50%" outerRadius="70%">
+        <ReRadar data={chartData} cx="50%" cy="50%" outerRadius="63%">
           <PolarGrid stroke="var(--c-border2)" />
           <PolarAngleAxis
             dataKey="axis"
-            tick={{ fill: 'var(--c-muted)', fontSize: 12, fontFamily: 'Inter' }}
+            tick={{ fill: 'var(--c-muted)', fontSize: 11, fontFamily: 'Inter' }}
           />
           {players.map((p, i) => (
             <Radar
@@ -57,7 +60,7 @@ export default function RadarChart({ data }) {
               color: 'var(--c-text)',
               fontSize: '0.85rem',
             }}
-            formatter={(val, name, props) => [val?.toFixed(2), name]}
+            formatter={(val, name) => [val != null ? `${Math.round(val)}%` : '—', name]}
           />
         </ReRadar>
       </ResponsiveContainer>

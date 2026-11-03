@@ -180,7 +180,7 @@ export default function PlayerProfile() {
                       </div>
                       {f.pct_in_position != null && (
                         <div style={{ fontSize: '0.72rem', color: 'var(--c-muted)', marginTop: 4 }}>
-                          {f.pct_in_position.toFixed(0)}th percentile in position
+                          Percentile: {f.pct_in_position.toFixed(0)}% in position
                         </div>
                       )}
                     </div>
@@ -220,7 +220,7 @@ export default function PlayerProfile() {
               <h3 className="mb-20">Key Strengths &amp; Weaknesses</h3>
               {strengths.length > 0 ? (
                 <div className="mb-20">
-                  <div className="label text-green mb-12">💪 Strengths (≥75th percentile)</div>
+                  <div className="label text-green mb-12">💪 Strengths (≥75% percentile)</div>
                   <div className="flex gap-8 wrap">
                     {strengths.map((s, i) => <span key={i} className="badge badge-green">{s}</span>)}
                   </div>
@@ -228,7 +228,7 @@ export default function PlayerProfile() {
               ) : null}
               {weaknesses.length > 0 ? (
                 <div>
-                  <div className="label text-red mb-12">⚠️ Areas to improve (≤25th percentile)</div>
+                  <div className="label text-red mb-12">⚠️ Areas to improve (≤25% percentile)</div>
                   <div className="flex gap-8 wrap">
                     {weaknesses.map((s, i) => <span key={i} className="badge badge-red">{s}</span>)}
                   </div>
