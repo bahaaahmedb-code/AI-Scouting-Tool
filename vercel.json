@@ -1,12 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "fluid": true,
   "framework": null,
   "installCommand": "npm --prefix frontend install",
   "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "functions": {
     "api/index.py": {
-      "includeFiles": "{artifacts/**,backend/app/**,backend/config.yaml}"
+      "includeFiles": "{artifacts/**,backend/app/**,backend/config.yaml}",
+      "excludeFiles": "{frontend/**,data/**,backend/data/**,scripts/**}"
     }
   },
   "rewrites": [
