@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "built_at": "2026-10-24T19:01:17+00:00",
+  "settings": {
+    "data_dir": "data/raw",
+    "kaggle_file": "premier_league_complete_stats_until31thGameDayOnSeason2025-26.csv",
+    "fbref_file": "PL_25-26_Season.xlsx",
+    "season": "2025-26",
+    "kaggle_matchday": 31,
+    "target_source": "synthetic",
+    "market_value_csv": null,
+    "min_minutes": 900,
+    "random_state": 42,
+    "test_size": 0.2,
+    "cv_folds": 5,
+    "model": "xgboost"
+  },
+  "target_is_synthetic": true,
+  "counts": {
+    "all": 517,
+    "outfield": 482,
+    "min_minutes": 278,
+    "with_age": 276,
+    "kaggle_rows": 517,
+    "kaggle_cols": 99,
+    "fbref_rows": 551,
+    "matched_with_age": 510
+  },
+  "chosen_model": "XGBoost",
+  "best_by_cv": "Linear Regression (baseline)",
+  "data_hashes": {
+    "kaggle": "3922036ef28c",
+    "fbref": "8b02a787d712"
+  },
+  "build_seconds": 11.4,
+  "cv_results": {
+    "Linear Regression (baseline)": {
+      "cv_r2_mean": 0.7127,
+      "cv_r2_std": 0.0319,
+      "cv_rmse_log": 0.5179,
+      "cv_mae_log": 0.4113,
+      "cv_mae_eur": 6217986.8266,
+      "cv_rmse_eur": 11911125.6015,
+      "cv_median_abs_pct": 34.6732,
+      "test_r2_log": 0.7003,
+      "test_mae_log": 0.4861,
+      "test_rmse_log": 0.5868,
+      "test_mae_eur": 6460471.0503,
+      "test_median_abs_pct": 41.7169
+    },
+    "Random Forest": {
+      "cv_r2_mean": 0.492,
+      "cv_r2_std": 0.0647,
+      "cv_rmse_log": 0.6897,
+      "cv_mae_log": 0.5234,
+      "cv_mae_eur": 7546038.3108,
+      "cv_rmse_eur": 15830181.3807,
+      "cv_median_abs_pct": 39.7567,
+      "test_r2_log": 0.5478,
+      "test_mae_log": 0.5428,
+      "test_rmse_log": 0.7208,
+      "test_mae_eur": 6815532.2388,
+      "test_median_abs_pct": 39.0961
+    },
+    "XGBoost": {
+      "cv_r2_mean": 0.6295,
+      "cv_r2_std": 0.0496,
+      "cv_rmse_log": 0.5892,
+      "cv_mae_log": 0.4573,
+      "cv_mae_eur": 6912401.3102,
+      "cv_rmse_eur": 15127677.3768,
+      "cv_median_abs_pct": 36.9484,
+      "test_r2_log": 0.6894,
+      "test_mae_log": 0.4867,
+      "test_rmse_log": 0.5974,
+      "test_mae_eur": 6397510.0402,
+      "test_median_abs_pct": 41.6172
+    }
+  },
+  "shap_gap": 2.09808349609375e-05
+}

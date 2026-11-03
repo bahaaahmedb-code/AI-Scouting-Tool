@@ -1,0 +1,39 @@
+# Moneyball EPL - configuration
+# Every value here can be overridden by an environment variable of the same name in UPPER CASE
+# (for example DATA_DIR=data/raw, TARGET_SOURCE=csv, MARKET_VALUE_CSV=data/raw/transfermarkt.csv).
+
+# ---- data ----
+data_dir: data/raw             # real datasets uploaded by user
+kaggle_file: premier_league_complete_stats_until31thGameDayOnSeason2025-26.csv
+fbref_file: PL_25-26_Season.xlsx
+season: "2025-26"
+kaggle_matchday: 31
+
+# ---- target ----
+# synthetic : notebook formula (features + noise). Values are NOT real market values.
+# csv       : real values from market_value_csv (columns: player_name, market_value_eur)
+target_source: synthetic
+market_value_csv: null
+
+# ---- sample and model (notebook section 1) ----
+min_minutes: 900
+random_state: 42
+test_size: 0.20
+cv_folds: 5
+# auto     : the model with the lowest cross-validated RMSE (log) is used
+# xgboost  : notebook default ("primary model in the proposal")
+# rf / linear : force that model
+model: xgboost
+
+# ---- paths ----
+artifacts_dir: artifacts
+log_dir: logs
+
+# ---- app ----
+eval_logging: true               # log chatbot questions/answers and evaluation responses
+eval_access_code: thesis2026     # override with EVAL_ACCESS_CODE in production
+llm_rephrase: true               # enhance chatbot with Gemini free-tier API when GEMINI_API_KEY is set
+gemini_model: "gemini-3.5-flash-lite" # ultra-fast free-tier Gemini model (falls back to gemini-3.1-flash-lite / gemini-3.8-flash)
+rate_limit: "60/minute"
+chat_rate_limit: "20/minute"
+feedback_url: "mailto:bahaa.ahmed@student.giu-uni.de"

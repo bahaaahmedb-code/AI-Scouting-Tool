@@ -1,0 +1,19 @@
+# Pinned backend dependencies (Python 3.11)
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.14.1
+scikit-learn==1.5.2
+xgboost==2.1.3
+shap==0.46.0
+joblib==1.4.2
+openpyxl==3.1.5
+PyYAML==6.0.2
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+slowapi==0.1.9
+httpx==0.28.1
+python-dotenv==1.2.4
+# optional: Gemini Free Tier LLM integration (GEMINI_API_KEY from https://aistudio.google.com/apikey)
+google-genai>=2.30.1
+anthropic==0.40.0
