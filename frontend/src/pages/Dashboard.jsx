@@ -18,8 +18,8 @@ const POS = [
   { value: 'M', label: 'Midfielders' },
   { value: 'F', label: 'Attackers' },
 ]
-const POS_COLOR = { D: '#3b82f6', M: '#10b981', F: '#ef4444' }
-const RADAR_COLORS = ['#3b82f6', '#10b981']
+const POS_COLOR = { D: '#60a5fa', M: '#5eead4', F: '#fb923c' }
+const RADAR_COLORS = ['#c8f542', '#5eead4']
 
 function fmtPercentile(n) {
   if (n == null) return '—'

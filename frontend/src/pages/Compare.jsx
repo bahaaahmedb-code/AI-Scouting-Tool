@@ -86,7 +86,7 @@ export default function Compare() {
     return p?.player_name ?? p?.name ?? `#${pid}`
   }
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6']
+  const COLORS = ['#c8f542', '#5eead4', '#fbbf24', '#a78bfa']
 
   return (
     <main className="page animate-fade">

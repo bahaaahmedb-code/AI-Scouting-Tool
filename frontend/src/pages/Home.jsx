@@ -17,53 +17,49 @@ export default function Home() {
       <section
         style={{
           background: 'var(--g-hero)',
-          borderBottom: '1px solid var(--c-border)',
-          padding: '80px 0 60px',
+          borderBottom: '1px solid var(--c-border2)',
+          padding: '88px 0 64px',
           position: 'relative',
           overflow: 'hidden',
         }}
       >
-        {/* Glow orbs */}
-        <div style={{
-          position: 'absolute', top: -60, left: '30%',
-          width: 500, height: 500, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: -80, right: '20%',
-          width: 400, height: 400, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(6,182,212,0.1) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
+        {/* Chalk-line pitch markings */}
+        <svg className="pitch-lines" viewBox="0 0 1200 520" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+          <g fill="none" stroke="rgba(226,240,214,0.10)" strokeWidth="1.5">
+            <circle cx="1010" cy="260" r="150" />
+            <circle cx="1010" cy="260" r="5" fill="rgba(200,245,66,0.7)" stroke="none" />
+            <line x1="1010" y1="-10" x2="1010" y2="540" />
+            <rect x="760" y="130" width="250" height="260" />
+            <rect x="760" y="200" width="90" height="120" />
+            <path d="M 850 215 A 60 60 0 0 1 850 305" />
+          </g>
+        </svg>
 
         <div className="container" style={{ position: 'relative', zIndex: 1 }}>
-          <div className="flex gap-12 items-center mb-16" style={{ flexWrap: 'wrap' }}>
-            <span className="badge badge-blue">BSc Thesis Prototype</span>
-            <span className="badge badge-yellow">⚠️ Synthetic data – research only</span>
+          <div className="flex gap-12 items-center mb-24" style={{ flexWrap: 'wrap' }}>
+            <span className="eyebrow">Premier League 2025–26 · Scouting Lab</span>
+            <span className="badge badge-yellow">Synthetic data · research only</span>
           </div>
 
-          <h1 style={{ marginBottom: 20, maxWidth: 700 }}>
-            AI-Powered{' '}
-            <span style={{ background: 'var(--g-cta)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-              Player Valuation
-            </span>{' '}
-            for the Premier League
+          <h1 className="hero-title" style={{ marginBottom: 24, maxWidth: 760, fontSize: 'clamp(2.4rem, 6vw, 4.4rem)' }}>
+            Know what a player is{' '}
+            <em>really</em>{' '}
+            worth, and exactly why.
           </h1>
 
-          <p style={{ color: 'var(--c-muted)', fontSize: '1.15rem', maxWidth: 600, marginBottom: 36, lineHeight: 1.7 }}>
-            Estimate market values with machine learning, explain every number with SHAP, scout cheaper alternatives, and ask plain-English questions — all without writing a line of code.
+          <p style={{ color: 'var(--c-muted)', fontSize: '1.12rem', maxWidth: 580, marginBottom: 36, lineHeight: 1.7 }}>
+            Estimate market values with machine learning, explain every number with SHAP, scout cheaper alternatives, and ask plain-English questions — no code required.
           </p>
 
           <div className="flex gap-12 wrap">
             <Link to="/players" className="btn btn-primary btn-lg" id="hero-cta-players">
-              🔍 Browse Players
+              Browse players →
             </Link>
             <Link to="/chat" className="btn btn-secondary btn-lg" id="hero-cta-chat">
-              💬 Ask a Question
+              Ask a question
             </Link>
             <Link to="/scout" className="btn btn-secondary btn-lg" id="hero-cta-scout">
-              🎯 Scout Alternatives
+              Scout alternatives
             </Link>
           </div>
 
@@ -123,7 +119,7 @@ export default function Home() {
                 width: 40, height: 40, borderRadius: '50%',
                 background: s.color + '22', color: s.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 800, fontSize: '1.1rem', marginBottom: 16,
+                fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: '1rem', marginBottom: 16,
               }}>{i + 1}</div>
               <h3 style={{ marginBottom: 8 }}>{s.title}</h3>
               <p className="text-muted" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>{s.desc}</p>
@@ -150,10 +146,10 @@ const FEATURES = [
 ]
 
 const STEPS = [
-  { title: 'Data ingestion & cleaning', color: 'var(--c-primary)',
+  { title: 'Data ingestion & cleaning', color: '#c8f542',
     desc: 'FBref season stats and Transfermarkt values are loaded, cleaned, and merged by name-matching.' },
-  { title: 'Feature engineering & modelling', color: 'var(--c-accent)',
+  { title: 'Feature engineering & modelling', color: '#5eead4',
     desc: 'An XGBoost regressor is trained via 5-fold cross-validation and SHAP values are computed for every player.' },
-  { title: 'Scouting & explanations', color: 'var(--c-green)',
+  { title: 'Scouting & explanations', color: '#4ade80',
     desc: 'A cosine-similarity matrix finds comparable players; the chat engine answers questions from pre-computed facts.' },
 ]

@@ -2,14 +2,14 @@ import { NavLink } from 'react-router-dom'
 import { useState } from 'react'
 
 const links = [
-  { to: '/',         label: '🏠 Home',     end: true },
-  { to: '/players',  label: '🔍 Players' },
-  { to: '/rankings', label: '🏆 Rankings' },
-  { to: '/scout',    label: '🎯 Scout' },
-  { to: '/compare',  label: '⚖️ Compare' },
-  { to: '/dashboard', label: '📊 Dashboard' },
-  { to: '/chat',     label: '💬 Chat' },
-  { to: '/about',    label: 'ℹ️ About' },
+  { to: '/',         label: 'Home',     end: true },
+  { to: '/players',  label: 'Players' },
+  { to: '/rankings', label: 'Rankings' },
+  { to: '/scout',    label: 'Scout' },
+  { to: '/compare',  label: 'Compare' },
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/chat',     label: 'Chat' },
+  { to: '/about',    label: 'About' },
 ]
 
 export default function Nav() {
@@ -19,8 +19,14 @@ export default function Nav() {
     <nav className="nav" role="navigation" aria-label="Main navigation">
       <div className="nav-inner">
         <NavLink to="/" className="nav-logo">
-          <div className="nav-logo-icon" aria-hidden="true">⚽</div>
-          <span>Moneyball <span style={{ color: 'var(--c-primary)' }}>EPL</span></span>
+          <div className="nav-logo-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 3v18M3 12h18" />
+              <circle cx="12" cy="12" r="3.2" />
+            </svg>
+          </div>
+          <span>Moneyball <em style={{ color: 'var(--c-primary)', fontStyle: 'italic', fontWeight: 500 }}>EPL</em></span>
         </NavLink>
 
         <div className="nav-links" role="menubar">
@@ -52,7 +58,7 @@ export default function Nav() {
         <div
           style={{
             position: 'fixed', top: 64, left: 0, right: 0, bottom: 0,
-            background: 'rgba(10,12,18,0.97)', zIndex: 99,
+            background: 'rgba(7,16,12,0.98)', zIndex: 99,
             display: 'flex', flexDirection: 'column', gap: 4, padding: '16px 24px',
           }}
         >
