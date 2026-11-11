@@ -463,11 +463,17 @@ OUT_OF_SCOPE = [
     (r"\btransfer fee|\bfee\b|\bbid\b|\bwhat (?:will|would) .* pay|\bhow much (?:will|would|should) .* (?:pay|cost to buy)|release clause|\bbuyout", "fee"),
     (r"\bwill (?:he|they|\w+) (?:sign|join|move|leave)|\bsign for\b|\bgoing to sign|\btransfer rumou?r|\bjoin (?:us|our club)", "sign"),
     (r"\binjur|\bfitness\b|\bmedical\b", "injury"),
-    (r"\bcontract|\bwages?\b|\bsalary|\bagent\b|\bexpir", "contract"),
+    (r"\bwages?\b|\bsalary|\bagent\b", "contract"),
     (r"\breputation|\bfamous|\bpopular|\bsocial media|\bfollowers|\bpersonality|\battitude|\boff[- ]field|\bcharacter\b", "reputation"),
-    (r"\bnext season|\bin the future\b|\bwill (?:he|\w+) score|\bpredict (?:his|the) (?:goals|future)|\bfuture potential\b|\bpredict .* potential\b", "future"),
     (r"\bgoalkeeper|\bkeeper\b|\bgk\b", "goalkeeper"),
 ]
+
+PROJECTION_RE = re.compile(
+    r"\bcontract\b|\bhow long should\b|\bextension\b|\brenew|\byear deal\b|\byears deal\b|"
+    r"\bdecline\b|\bincline\b|\baging\b|\bageing\b|\btrajectory\b|\bprojection\b|\bproject(?:ed)?\b|"
+    r"\bfuture\b|\bnext \d+ (?:years?|seasons?)\b|\bin \d+ years?\b|\bwhen he is \d{2}\b|\bat age \d{2}\b|"
+    r"\bwill he still perform\b|\bstill perform\b|\bpast his peak\b|\bpeak window\b|\bresale value\b"
+)
 COMMON_QUERY_WORDS = {
     "i", "premier", "league", "shap", "xg", "xa", "xgboost", "fbref", "kaggle", "transfermarkt", "csv", "epl",
     "what", "why", "how", "who", "which", "show", "find", "compare", "list", "top", "give", "tell", "explain",

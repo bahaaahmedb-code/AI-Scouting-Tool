@@ -55,6 +55,7 @@ class Store:
         self.chosen = bundle["chosen_model"]
         self.keys = self.d["player_name"].map(norm_name)
         self.train_idx = set(bundle["train_idx"])
+        self.aging_data = bundle.get("aging", {"meta": {}, "players": {}})
 
     @classmethod
     def load(cls, artifacts_dir: Path) -> "Store":
@@ -175,7 +176,12 @@ class Store:
             "n_in_position": int((self.d["position"] == r["position"]).sum()),
             "key_stats": [s for s in stats if s["key"] in KEY_STATS], "stats": stats,
             "top_drivers": self.top_drivers(i, 3), "provenance": self.provenance(i),
+            "projection": self.projection(i),
         }
+
+    def projection(self, i: int) -> dict | None:
+        players_map = self.aging_data.get("players", {})
+        return players_map.get(int(i)) or players_map.get(str(i))
 
     # ------------------------------------------------------------------ SHAP
     def raw_value(self, i: int, f: str):

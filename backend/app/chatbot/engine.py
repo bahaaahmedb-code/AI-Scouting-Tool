@@ -261,6 +261,11 @@ class ChatEngine:
 
         if len(players) == 1:
             i = players[0]
+            if nlu.PROJECTION_RE.search(ql):
+                r = self.player_projection(i, F)
+                if resolved_note:
+                    r.context_note = resolved_note
+                return r
             like_intent = bool(re.search(r"\blike\b(?!\s+(?:that|this|so|it|a|an|the)\b)", ql))
             if (nlu.wants_scouting(q) or like_intent) and not re.search(r"\bwhy\b|\bexplain\b", ql):
                 r = self.scout(i, q, s, F)
@@ -1764,4 +1769,41 @@ class ChatEngine:
                   f"**{F.eur(w['after_eur'])}** (**{F.pct(w['change_pct'])}**).{self.syn()}")
         r.actions = [self.profile_link(i)]
         r.suggestions = [f"Why is {self.name(i)} valued at that much?", f"Find cheaper alternatives to {self.name(i)}"]
+        return r
+
+    def player_projection(self, i: int, F: Facts) -> Reply:
+        r = Reply("projection", F)
+        proj = self.st.projection(i)
+        if not proj:
+            r.text = f"No multi-season aging projection is available for **{self.name(i)}**."
+            return r
+        c = proj["contract"]
+        fut = proj["future"]
+        y1, y2, y3 = fut[0], fut[1], fut[2]
+        F.allow("100", "2022", "2023", "2024", "2025", "2026", "2027", "2028", "2029",
+                "22", "23", "24", "25", "26", "27", "28", "29", "3",
+                proj["peak_age_window"], c["recommended_years"], c["contract_structure"])
+        hist_str = ", ".join(
+            f"**{F.raw(h['season'])}** ({h['club']}, {F.int(h['minutes'])} mins, Role Index **{F.num(h['role_index'], 1)}/100**)"
+            for h in proj["history"]
+        )
+        r.text = (
+            f"### 📈 Multi-Season Aging & Contract Advisory: {self.who(i, F)}\n\n"
+            f"- **Trajectory Status:** **{proj['trajectory_label']}** *(Confidence: {proj['confidence']})*\n"
+            f"- **Current 2025-26 Baseline (Age {F.int(proj['current_age'])}):** Role Performance Index **{F.num(proj['current_role_index'], 1)}/100** | Fair Value **{F.eur(proj['current_value_eur'])}**\n"
+            f"- **Historical Track Record:** {hist_str if hist_str else '2025-26 Premier League season only'}\n\n"
+            f"#### 🔮 3-Year Forward Projection\n"
+            f"- **{y1['season']} (Age {F.int(y1['age'])}):** Role Index **{F.num(y1['role_index'], 1)}/100** ({F.pct(y1['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y1['estimated_value_eur'])}** ({F.pct(y1['value_change_pct'])})\n"
+            f"- **{y2['season']} (Age {F.int(y2['age'])}):** Role Index **{F.num(y2['role_index'], 1)}/100** ({F.pct(y2['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y2['estimated_value_eur'])}** ({F.pct(y2['value_change_pct'])})\n"
+            f"- **{y3['season']} (Age {F.int(y3['age'])}):** Role Index **{F.num(y3['role_index'], 1)}/100** ({F.pct(y3['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y3['estimated_value_eur'])}** ({F.pct(y3['value_change_pct'])})\n\n"
+            f"#### 📝 Contract Recommendation: **{c['recommended_years']}** ({c['verdict']})\n"
+            f"- **Structure:** {c['contract_structure']}\n"
+            f"- **Risk Level:** {c['risk_level']}\n"
+            f"- **Scouting Rationale:** {F.raw(c['rationale'])}"
+        )
+        r.actions = [self.profile_link(i)]
+        r.suggestions = [
+            f"Find younger alternatives to {self.name(i)}",
+            f"Why is {self.name(i)} valued at that much?",
+        ]
         return r

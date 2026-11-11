@@ -4,6 +4,7 @@ import { getPlayer, getShap } from '../api'
 import { fmtValue, fmtNum } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../components/UI'
 import WaterfallChart from '../components/WaterfallChart'
+import AgingProjectionPanel from '../components/AgingProjectionPanel'
 
 /** Normalize API player object to consistent field names */
 function norm(p) {
@@ -132,6 +133,26 @@ export default function PlayerProfile() {
               <div className="val-big" id="player-estimated-value">
                 {fmtValue(p.estimated_value_eur ?? p.estimated_value)}
               </div>
+              {p.projection?.contract && (
+                <div className="mt-4" style={{ fontSize: '0.8rem' }}>
+                  <span
+                    onClick={() => setTab('projection')}
+                    style={{
+                      cursor: 'pointer',
+                      display: 'inline-block',
+                      background: 'rgba(200, 245, 66, 0.12)',
+                      border: '1px solid rgba(200, 245, 66, 0.35)',
+                      color: 'var(--c-primary)',
+                      padding: '2px 8px',
+                      borderRadius: 6,
+                      fontWeight: 700,
+                    }}
+                    title="Click to view 3-Season Aging & Contract Projection"
+                  >
+                    📝 Ideal Contract: {p.projection.contract.recommended_years}
+                  </span>
+                </div>
+              )}
               {(p.listed_value_eur ?? p.market_value_eur) && (
                 <div className="text-muted mt-4" style={{ fontSize: '0.85rem' }}>
                   Mkt: {fmtValue(p.listed_value_eur ?? p.market_value_eur)}
@@ -153,9 +174,10 @@ export default function PlayerProfile() {
         {/* ── Tabs ─────────────────────────────────────────────── */}
         <div className="tabs" role="tablist">
           {[
-            { id: 'stats',     label: '📊 Statistics' },
-            { id: 'explain',   label: '🧠 SHAP Explanation' },
-            { id: 'strengths', label: '💪 Strengths' },
+            { id: 'stats',      label: '📊 Statistics' },
+            { id: 'projection', label: '📈 Aging & Contract Advisor' },
+            { id: 'explain',    label: '🧠 SHAP Explanation' },
+            { id: 'strengths',  label: '💪 Strengths' },
           ].map(t => (
             <button key={t.id} role="tab" aria-selected={tab === t.id}
               className={`tab${tab === t.id ? ' active' : ''}`}
@@ -192,6 +214,11 @@ export default function PlayerProfile() {
               <p className="text-muted">No detailed stats available for this player.</p>
             )}
           </div>
+        )}
+
+        {/* ── Tab: Aging & Contract Advisor ────────────────────── */}
+        {tab === 'projection' && (
+          <AgingProjectionPanel projection={p.projection} />
         )}
 
         {/* ── Tab: SHAP ─────────────────────────────────────────── */}

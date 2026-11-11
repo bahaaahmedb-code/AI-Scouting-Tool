@@ -110,6 +110,15 @@ def player(request: Request, pid: int):
     return S().profile(_player(pid))
 
 
+@app.get("/api/players/{pid}/projection")
+@limiter.limit(settings.rate_limit)
+def player_projection(request: Request, pid: int):
+    proj = S().projection(_player(pid))
+    if not proj:
+        raise HTTPException(404, "Projection not available for this player.")
+    return proj
+
+
 @app.get("/api/players/{pid}/shap")
 @limiter.limit(settings.rate_limit)
 def player_shap(request: Request, pid: int, merged: bool = True, max_display: int = Query(12, ge=3, le=40)):

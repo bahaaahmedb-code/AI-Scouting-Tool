@@ -12,6 +12,9 @@ export const getPlayer = (pid) =>
 export const getShap = (pid, params = {}) =>
   api.get(`/players/${pid}/shap`, { params }).then(r => r.data)
 
+export const getProjection = (pid) =>
+  api.get(`/players/${pid}/projection`).then(r => r.data)
+
 // ── Explain ───────────────────────────────────────────────────────────────────
 export const getGlobalImportance = (position) =>
   api.get('/explain/global', { params: position ? { position } : {} }).then(r => r.data)
