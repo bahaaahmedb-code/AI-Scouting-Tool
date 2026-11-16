@@ -12,8 +12,8 @@ kaggle_matchday: 31
 # ---- target ----
 # synthetic : notebook formula (features + noise). Values are NOT real market values.
 # csv       : real values from market_value_csv (columns: player_name, market_value_eur)
-target_source: synthetic
-market_value_csv: null
+target_source: csv
+market_value_csv: data/market_values.csv
 
 # ---- sample and model (notebook section 1) ----
 min_minutes: 900

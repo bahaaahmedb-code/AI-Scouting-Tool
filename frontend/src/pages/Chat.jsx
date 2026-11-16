@@ -29,6 +29,7 @@ const INTENT_LABELS = {
   comparison: '⚖️ Comparison',
   ranking: '🏆 Ranking',
   whatif: '🔮 What-If',
+  projection: '📈 Aging & Contract Advisor',
   glossary: '📖 Glossary',
   howto: '🧭 Guide',
   data_quality: '📋 Dataset',
@@ -504,17 +505,45 @@ const WELCOME_MSG = {
   ],
 }
 
+const CHAT_STORAGE_KEY = 'moneyball_chat_state_v1'
+
+function loadSavedChatState() {
+  try {
+    const raw = sessionStorage.getItem(CHAT_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed && Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+      return parsed
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null
+}
+
 export default function Chat() {
-  const [messages, setMessages] = useState([WELCOME_MSG])
-  const [input, setInput] = useState('')
+  const saved = loadSavedChatState()
+  const [messages, setMessages] = useState(() => saved?.messages ?? [WELCOME_MSG])
+  const [input, setInput] = useState(() => saved?.input ?? '')
   const [loading, setLoading] = useState(false)
-  const [sessionId, setSessionId] = useState(null)
-  const [context, setContext] = useState(null)
-  const [gemini, setGemini] = useState({ configured: false, enabled: true, masked_key: null, model: 'gemini-3.8-flash' })
+  const [sessionId, setSessionId] = useState(() => saved?.sessionId ?? null)
+  const [context, setContext] = useState(() => saved?.context ?? null)
+  const [gemini, setGemini] = useState({ configured: false, enabled: true, masked_key: null, model: 'gemini-3.5-flash-lite' })
   const [showKeyBox, setShowKeyBox] = useState(false)
   const [keyInput, setKeyInput] = useState('')
   const [savingKey, setSavingKey] = useState(false)
   const messagesListRef = useRef(null)
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        CHAT_STORAGE_KEY,
+        JSON.stringify({ messages, input, sessionId, context })
+      )
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [messages, input, sessionId, context])
 
   useEffect(() => {
     getGeminiStatus().then(setGemini).catch(() => {})
@@ -608,7 +637,13 @@ export default function Chat() {
   function handleReset() {
     setSessionId(null)
     setContext(null)
+    setInput('')
     setMessages([WELCOME_MSG])
+    try {
+      sessionStorage.removeItem(CHAT_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
     toast.success('Started a fresh chat session')
   }
 

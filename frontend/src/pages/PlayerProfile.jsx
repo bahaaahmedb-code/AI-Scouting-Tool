@@ -190,6 +190,11 @@ export default function PlayerProfile() {
         {/* ── Tab: Statistics ──────────────────────────────────── */}
         {tab === 'stats' && (
           <div className="animate-fade">
+            <div className="alert alert-info mb-16" style={{ fontSize: '0.85rem' }}>
+              <strong>3-season weighting:</strong> per-90 rates, pass accuracy and share of matches started are a
+              recency-weighted blend of 2025-26 (55%), 2024-25 (30%) and 2023-24 (15%){p.seasons_used ? ` — ${p.seasons_used} season${p.seasons_used > 1 ? 's' : ''} available for this player` : ''}.
+              Minutes, age and team strength are the current 2025-26 values.
+            </div>
             {Object.entries(featuresByGroup).map(([group, feats]) => (
               <div key={group} className="card mb-16">
                 <h3 className="mb-16">{group}</h3>

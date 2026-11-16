@@ -350,10 +350,17 @@ def _recommend_contract(age: int, pos: str, subrole: str, perf_now: float, perf_
     }
 
 
-def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print) -> dict:
-    """Build multi-season history + 3-year forward projections for all 276 players in `d`."""
+def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, hist: pd.DataFrame | None = None,
+                            blended: bool = False) -> dict:
+    """Build multi-season history + 3-year forward projections for all 276 players in `d`.
+
+    `blended=True` means `d` already holds recency-weighted (55/30/15) features, so the projection starts
+    from that multi-season baseline and the 2025-26 raw values are read from the `<feature>_cur` columns.
+    """
     hist_csv = _find_historical_csv(data_path)
-    if hist_csv is None or not hist_csv.exists():
+    if hist is not None:
+        log(f"Using calibrated multi-season archive ({len(hist)} player-seasons)")
+    elif hist_csv is None or not hist_csv.exists():
         log("WARNING: fbref_historical_2018_2025.csv not found; building aging curves from parametric prior only.")
         hist = pd.DataFrame(columns=["key", "Player", "Squad", "Comp", "position", "Season_End_Year", "season", "age", "Born", "minutes"] + PER90_FEATURES + ["pass_accuracy", "start_share"])
     else:
@@ -423,7 +430,7 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print) -
             "minutes": int(round(float(row["minutes"]))),
             "role_index": round(perf_now, 1),
             "estimated_value_eur": round(est_now, -4),
-            "stats": {k: round(float(row[k]), 2) for k in head_cols if k != "minutes"},
+            "stats": {k: round(float(row[k + "_cur"] if (k + "_cur") in row.index else row[k]), 2) for k in head_cols if k != "minutes"},
         }
 
         all_past = history_seasons + [current_entry]
@@ -436,9 +443,10 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print) -
         else:
             personal_idx_slope = 0.0
 
-        # Multi-season anchor: blend 70% current 2025-26 rate + 30% recent historical rate so 1 partial season doesn't distort projections
+        # Baseline for the projection. When `d` is already recency-weighted (blended=True) it IS the multi-season
+        # baseline. Otherwise blend 72% current + 28% most recent historical season here.
         sim_row = row[NUM_FEATURES + CAT_FEATURES].copy()
-        if not p_hist.empty:
+        if not blended and not p_hist.empty:
             recent_hist = p_hist.iloc[-1]
             for col in PER90_FEATURES + ["pass_accuracy"]:
                 if col in recent_hist and pd.notna(recent_hist[col]):

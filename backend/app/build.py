@@ -23,6 +23,7 @@ from .features import attach_target, build_features
 from .model import compute_shap, oof_estimates, train_and_compare
 from .similarity import position_zscores, radar_percentiles, similarity_matrix
 from .aging import build_aging_projections
+from .multiseason import blend_multiseason, calibrate_history, load_history
 
 BUNDLE_VERSION = 1
 
@@ -47,6 +48,16 @@ def build(settings=None, verbose: bool = True) -> dict:
 
     d, feat_info = build_features(sample)
     log(f"blank xG before: {feat_info['blank_xg']} | blank xA before: {feat_info['blank_xa']}")
+
+    hist_cal, ms_info = None, None
+    if s.multi_season_weighting:
+        hist_raw = load_history(s.data_path)
+        if hist_raw is None:
+            log("WARNING: historical archive not found; using 2025-26 features only")
+        else:
+            hist_cal, calib = calibrate_history(d, hist_raw, log=log)
+            d, ms_info = blend_multiseason(d, hist_cal, log=log)
+            ms_info["calibration_pairs"] = calib["n_pairs"]
     d, target_info = attach_target(d, s)
     log("Target:", s.target_label)
 
@@ -91,7 +102,7 @@ def build(settings=None, verbose: bool = True) -> dict:
 
     keep_excl = [c for c in ["player_name", "kaggle_name", "team_name", "position", "minutesPlayed", "in_fbref",
                              "match_step", "exclusion_reason"] if c in excluded.columns]
-    aging_data = build_aging_projections(d, pipe, s.data_path, log=log)
+    aging_data = build_aging_projections(d, pipe, s.data_path, log=log, hist=hist_cal, blended=ms_info is not None)
     bundle = {
         "version": BUNDLE_VERSION,
         "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -113,7 +124,7 @@ def build(settings=None, verbose: bool = True) -> dict:
         "shap_feat": shap_feat, "imp_feat": imp_feat, "mean_abs": mean_abs,
         "perf_feats": [f for f in imp_feat.index if group_of(f) in PERF_GROUPS],
         "Z": Z, "S": S, "pct_in_pos": pct_in_pos, "radar_pct": radar_pct,
-        "aging": aging_data,
+        "aging": aging_data, "multiseason": ms_info,
         "base_eur": float(np.exp(sh["base"].mean())),
         "build_seconds": round(time.time() - t0, 1),
     }

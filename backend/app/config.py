@@ -26,13 +26,14 @@ class Settings:
     fbref_file: str = "PL_25-26_Season.xlsx"
     season: str = "2025-26"
     kaggle_matchday: int = 31
-    target_source: str = "synthetic"
-    market_value_csv: str | None = None
+    target_source: str = "csv"
+    market_value_csv: str | None = "data/market_values.csv"
     min_minutes: int = 900
     random_state: int = 42
     test_size: float = 0.20
     cv_folds: int = 5
     model: str = "xgboost"
+    multi_season_weighting: bool = True
     artifacts_dir: str = "artifacts"
     log_dir: str = "logs"
     eval_logging: bool = True

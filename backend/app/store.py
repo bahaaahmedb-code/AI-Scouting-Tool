@@ -177,6 +177,7 @@ class Store:
             "key_stats": [s for s in stats if s["key"] in KEY_STATS], "stats": stats,
             "top_drivers": self.top_drivers(i, 3), "provenance": self.provenance(i),
             "projection": self.projection(i),
+            "seasons_used": int(r["seasons_used"]) if "seasons_used" in r.index else None,
         }
 
     def projection(self, i: int) -> dict | None:
