@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getMeta } from '../api'
 import { fmtValue } from '../utils'
 import { StatPill, Disclaimer } from '../components/UI'
+import { IconSearch, IconBrain, IconTarget, IconScale, IconTrophy, IconChat } from '../components/Icons'
 
 export default function Home() {
   const [meta, setMeta] = useState(null)
@@ -38,7 +39,6 @@ export default function Home() {
         <div className="container" style={{ position: 'relative', zIndex: 1 }}>
           <div className="flex gap-12 items-center mb-24" style={{ flexWrap: 'wrap' }}>
             <span className="eyebrow">Premier League 2025–26 · Scouting Lab</span>
-            <span className="badge badge-yellow">Synthetic data · research only</span>
           </div>
 
           <h1 className="hero-title" style={{ marginBottom: 24, maxWidth: 760, fontSize: 'clamp(2.4rem, 6vw, 4.4rem)' }}>
@@ -95,7 +95,16 @@ export default function Home() {
           {FEATURES.map(f => (
             <Link key={f.to} to={f.to} className="card card--gradient card--glow" style={{ display: 'block', transition: 'all 0.25s' }}
               id={`feature-tile-${f.id}`}>
-              <div style={{ fontSize: '2rem', marginBottom: 12 }}>{f.icon}</div>
+              <div style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: 'rgba(200, 245, 66, 0.10)',
+                border: '1px solid rgba(200, 245, 66, 0.25)',
+                color: 'var(--c-primary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginBottom: 14,
+              }}>
+                <f.Icon size={22} />
+              </div>
               <h3 style={{ marginBottom: 8 }}>{f.title}</h3>
               <p className="text-muted" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>{f.desc}</p>
               <div style={{ marginTop: 16, color: 'var(--c-primary)', fontSize: '0.85rem', fontWeight: 600 }}>
@@ -137,12 +146,12 @@ export default function Home() {
 }
 
 const FEATURES = [
-  { id: 'players',  to: '/players',  icon: '🔍', title: 'Player Profiles',   desc: 'Search 400+ EPL outfield players. See stats, estimated value, position, age, and club at a glance.' },
-  { id: 'explain',  to: '/explain',  icon: '🧠', title: 'SHAP Explanations', desc: 'Understand why the model assigned a value. Waterfall charts break down each feature\'s contribution in plain language.' },
-  { id: 'scout',    to: '/scout',    icon: '🎯', title: 'Scouting Tool',     desc: 'Pick a target player and find similar, cheaper alternatives. Filter by position, age, and budget.' },
-  { id: 'compare',  to: '/compare',  icon: '⚖️', title: 'Side-by-Side',      desc: 'Compare up to 4 players across stats, estimated values, and a radar chart of key attributes.' },
-  { id: 'rankings', to: '/rankings', icon: '🏆', title: 'Rankings',          desc: 'League tables by estimated value, goals, assists, xG, minutes, and more. Filter by club or position.' },
-  { id: 'chat',     to: '/chat',     icon: '💬', title: 'AI Chat',           desc: 'Ask plain-English questions: "Who are the most undervalued midfielders?" — get structured answers instantly.' },
+  { id: 'players',  to: '/players',  Icon: IconSearch, title: 'Player Profiles',   desc: 'Search 276 qualified EPL outfield players. View 3-season weighted stats, Transfermarkt value, and 3-year contract projections.' },
+  { id: 'explain',  to: '/explain',  Icon: IconBrain,  title: 'SHAP Explanations', desc: 'Understand why the model assigned a value. Waterfall charts break down each feature\'s contribution in plain language.' },
+  { id: 'scout',    to: '/scout',    Icon: IconTarget, title: 'Scouting Tool',     desc: 'Pick a target player and find similar, cheaper alternatives. Filter by position, age, and budget.' },
+  { id: 'compare',  to: '/compare',  Icon: IconScale,  title: 'Side-by-Side',      desc: 'Compare up to 4 players across stats, estimated values, and a radar chart of key attributes.' },
+  { id: 'rankings', to: '/rankings', Icon: IconTrophy, title: 'Rankings',          desc: 'League tables by estimated value, goals, assists, xG, minutes, and more. Filter by club or position.' },
+  { id: 'chat',     to: '/chat',     Icon: IconChat,   title: 'AI Chat',           desc: 'Ask plain-English questions about valuations, contract lengths, aging trajectories, and undervalued signings.' },
 ]
 
 const STEPS = [

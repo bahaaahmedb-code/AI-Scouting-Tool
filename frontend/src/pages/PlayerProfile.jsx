@@ -5,6 +5,10 @@ import { fmtValue, fmtNum } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../components/UI'
 import WaterfallChart from '../components/WaterfallChart'
 import AgingProjectionPanel from '../components/AgingProjectionPanel'
+import {
+  IconBall, IconStadium, IconCalendar, IconGlobe, IconClock, IconClipboard,
+  IconContract, IconTarget, IconScale, IconChart, IconTrendUp, IconBrain, IconShield, IconAlert,
+} from '../components/Icons'
 
 /** Normalize API player object to consistent field names */
 function norm(p) {
@@ -109,10 +113,14 @@ export default function PlayerProfile() {
           <div className="flex gap-24 wrap">
             <div style={{
               width: 80, height: 80, borderRadius: 16,
-              background: 'linear-gradient(135deg, var(--c-primary), var(--c-accent))',
+              background: 'linear-gradient(135deg, rgba(200, 245, 66, 0.22), rgba(94, 234, 212, 0.16))',
+              border: '1px solid rgba(200, 245, 66, 0.35)',
+              color: 'var(--c-primary)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '2rem', flexShrink: 0,
-            }}>⚽</div>
+              flexShrink: 0,
+            }}>
+              <IconBall size={38} />
+            </div>
 
             <div style={{ flex: 1 }}>
               <div className="flex items-center gap-12 wrap mb-8">
@@ -120,11 +128,11 @@ export default function PlayerProfile() {
                 <PosChip pos={p.position} />
               </div>
               <div className="flex gap-16 wrap" style={{ color: 'var(--c-muted)', fontSize: '0.9rem' }}>
-                <span>🏟️ {p.club}</span>
-                <span>🎂 Age {p.age}</span>
-                {(p.nation ?? p.nationality) && <span>🌍 {p.nation ?? p.nationality}</span>}
-                <span>⏱️ {(p.minutes ?? p.minutes_played)?.toLocaleString() ?? '—'} mins</span>
-                {p.position_name && <span>📋 {p.position_name}</span>}
+                <span className="flex items-center gap-6"><IconStadium size={15} /> {p.club}</span>
+                <span className="flex items-center gap-6"><IconCalendar size={15} /> Age {p.age}</span>
+                {(p.nation ?? p.nationality) && <span className="flex items-center gap-6"><IconGlobe size={15} /> {p.nation ?? p.nationality}</span>}
+                <span className="flex items-center gap-6"><IconClock size={15} /> {(p.minutes ?? p.minutes_played)?.toLocaleString() ?? '—'} mins</span>
+                {p.position_name && <span className="flex items-center gap-6"><IconClipboard size={15} /> {p.position_name}</span>}
               </div>
             </div>
 
@@ -139,17 +147,19 @@ export default function PlayerProfile() {
                     onClick={() => setTab('projection')}
                     style={{
                       cursor: 'pointer',
-                      display: 'inline-block',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
                       background: 'rgba(200, 245, 66, 0.12)',
                       border: '1px solid rgba(200, 245, 66, 0.35)',
                       color: 'var(--c-primary)',
-                      padding: '2px 8px',
+                      padding: '3px 9px',
                       borderRadius: 6,
                       fontWeight: 700,
                     }}
                     title="Click to view 3-Season Aging & Contract Projection"
                   >
-                    📝 Ideal Contract: {p.projection.contract.recommended_years}
+                    <IconContract size={14} /> Ideal Contract: {p.projection.contract.recommended_years}
                   </span>
                 </div>
               )}
@@ -164,8 +174,8 @@ export default function PlayerProfile() {
                 </div>
               )}
               <div className="flex gap-8 mt-12" style={{ justifyContent: 'flex-end' }}>
-                <Link to={`/scout?target=${pid}`} className="btn btn-secondary btn-sm" id="profile-scout-btn">🎯 Scout</Link>
-                <Link to={`/compare?ids=${pid}`} className="btn btn-ghost btn-sm" id="profile-compare-btn">⚖️ Compare</Link>
+                <Link to={`/scout?target=${pid}`} className="btn btn-secondary btn-sm" id="profile-scout-btn"><IconTarget size={14} /> Scout</Link>
+                <Link to={`/compare?ids=${pid}`} className="btn btn-ghost btn-sm" id="profile-compare-btn"><IconScale size={14} /> Compare</Link>
               </div>
             </div>
           </div>
@@ -174,15 +184,15 @@ export default function PlayerProfile() {
         {/* ── Tabs ─────────────────────────────────────────────── */}
         <div className="tabs" role="tablist">
           {[
-            { id: 'stats',      label: '📊 Statistics' },
-            { id: 'projection', label: '📈 Aging & Contract Advisor' },
-            { id: 'explain',    label: '🧠 SHAP Explanation' },
-            { id: 'strengths',  label: '💪 Strengths' },
+            { id: 'stats',      label: 'Statistics',               Icon: IconChart },
+            { id: 'projection', label: 'Aging & Contract Advisor', Icon: IconTrendUp },
+            { id: 'explain',    label: 'SHAP Explanation',         Icon: IconBrain },
+            { id: 'strengths',  label: 'Strengths',                Icon: IconShield },
           ].map(t => (
             <button key={t.id} role="tab" aria-selected={tab === t.id}
               className={`tab${tab === t.id ? ' active' : ''}`}
               onClick={() => setTab(t.id)} id={`profile-tab-${t.id}`}>
-              {t.label}
+              <span className="flex items-center gap-6"><t.Icon size={15} /> {t.label}</span>
             </button>
           ))}
         </div>
@@ -190,11 +200,6 @@ export default function PlayerProfile() {
         {/* ── Tab: Statistics ──────────────────────────────────── */}
         {tab === 'stats' && (
           <div className="animate-fade">
-            <div className="alert alert-info mb-16" style={{ fontSize: '0.85rem' }}>
-              <strong>3-season weighting:</strong> per-90 rates, pass accuracy and share of matches started are a
-              recency-weighted blend of 2025-26 (55%), 2024-25 (30%) and 2023-24 (15%){p.seasons_used ? ` — ${p.seasons_used} season${p.seasons_used > 1 ? 's' : ''} available for this player` : ''}.
-              Minutes, age and team strength are the current 2025-26 values.
-            </div>
             {Object.entries(featuresByGroup).map(([group, feats]) => (
               <div key={group} className="card mb-16">
                 <h3 className="mb-16">{group}</h3>
@@ -252,7 +257,7 @@ export default function PlayerProfile() {
               <h3 className="mb-20">Key Strengths &amp; Weaknesses</h3>
               {strengths.length > 0 ? (
                 <div className="mb-20">
-                  <div className="label text-green mb-12">💪 Strengths (≥75% percentile)</div>
+                  <div className="label text-green mb-12 flex items-center gap-6"><IconShield size={14} /> Strengths (≥75% percentile)</div>
                   <div className="flex gap-8 wrap">
                     {strengths.map((s, i) => <span key={i} className="badge badge-green">{s}</span>)}
                   </div>
@@ -260,7 +265,7 @@ export default function PlayerProfile() {
               ) : null}
               {weaknesses.length > 0 ? (
                 <div>
-                  <div className="label text-red mb-12">⚠️ Areas to improve (≤25% percentile)</div>
+                  <div className="label text-red mb-12 flex items-center gap-6"><IconAlert size={14} /> Areas to improve (≤25% percentile)</div>
                   <div className="flex gap-8 wrap">
                     {weaknesses.map((s, i) => <span key={i} className="badge badge-red">{s}</span>)}
                   </div>
@@ -291,7 +296,7 @@ export default function PlayerProfile() {
                 Use the scouting tool to find players with similar playing styles at a lower estimated cost.
               </p>
               <Link to={`/scout?target=${pid}`} className="btn btn-primary" id="strengths-scout-btn">
-                🎯 Scout alternatives for {playerName}
+                <IconTarget size={16} /> Scout alternatives for {playerName}
               </Link>
             </div>
           </div>

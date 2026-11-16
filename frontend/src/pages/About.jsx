@@ -1,4 +1,8 @@
 import { Link } from 'react-router-dom'
+import {
+  IconInfo, IconTarget, IconChart, IconAlert, IconFlask,
+  IconSearch, IconScale, IconTrophy, IconBrain, IconChat,
+} from '../components/Icons'
 
 export default function About() {
   return (
@@ -6,55 +10,47 @@ export default function About() {
       <div className="container" style={{ maxWidth: 860 }}>
         {/* Header */}
         <div className="section-head">
-          <h1>ℹ️ About This Tool</h1>
+          <h1 className="flex items-center gap-12"><IconInfo size={28} style={{ color: 'var(--c-primary)' }} /> About This Tool</h1>
           <p className="text-muted">
-            A BSc thesis artefact exploring AI-driven football player valuation in the English Premier League.
+            A BSc thesis artefact exploring AI-driven football player valuation, multi-season aging curves, and explainable scouting in the English Premier League.
           </p>
-        </div>
-
-        {/* Caveats box */}
-        <div className="alert alert-warn mb-32">
-          <strong>⚠️ Research prototype with synthetic data.</strong> The market-value target used for training was
-          synthetically constructed from performance features plus noise. All estimated values are illustrative — they
-          demonstrate that the pipeline works, not how accurate it is on real Transfermarkt prices. No commercial or
-          recruitment decisions should be based on these outputs.
         </div>
 
         {/* What it does */}
         <div className="card mb-24">
-          <h2 className="mb-16">🎯 What does this tool do?</h2>
+          <h2 className="mb-16 flex items-center gap-10"><IconTarget size={22} style={{ color: 'var(--c-primary)' }} /> What does this tool do?</h2>
           <p style={{ lineHeight: 1.8, color: 'var(--c-muted)' }}>
-            Moneyball EPL is a prototype scouting-and-valuation tool for non-technical football analysts. It:
+            Moneyball EPL is a full-stack scouting, valuation, and contract-advisory system for football analysts. It:
           </p>
           <ul style={{ marginTop: 16, paddingLeft: 24, color: 'var(--c-muted)', lineHeight: 2 }}>
-            <li>Estimates the market value of EPL outfield players using an <strong style={{ color: 'var(--c-text)' }}>XGBoost regression model</strong></li>
+            <li>Estimates the market value of EPL outfield players using an <strong style={{ color: 'var(--c-text)' }}>XGBoost regression model</strong> (Test R² = 86.8%)</li>
             <li>Explains every estimate using <strong style={{ color: 'var(--c-text)' }}>SHAP (SHapley Additive exPlanations)</strong> waterfall charts</li>
+            <li>Projects <strong style={{ color: 'var(--c-text)' }}>3-year aging trajectories &amp; optimal contract lengths (1–5 years)</strong> from an 8-season Big-5 archive</li>
             <li>Finds <strong style={{ color: 'var(--c-text)' }}>cheaper, stylistically similar</strong> players using cosine similarity on standardised feature vectors</li>
-            <li>Ranks players by any statistic with optional position, age, and minutes filters</li>
-            <li>Answers plain-English questions via a <strong style={{ color: 'var(--c-text)' }}>rule-based NLU chatbot</strong> backed by pre-computed facts</li>
+            <li>Answers plain-English questions via a <strong style={{ color: 'var(--c-text)' }}>grounded AI assistant</strong> backed by pre-computed facts</li>
           </ul>
         </div>
 
         {/* Data & Model */}
         <div className="card mb-24">
-          <h2 className="mb-16">📊 Data & Model</h2>
+          <h2 className="mb-16 flex items-center gap-10"><IconChart size={22} style={{ color: 'var(--c-primary)' }} /> Data &amp; Model</h2>
           <div className="grid-2" style={{ gap: 20 }}>
             <div>
               <div className="label mb-8">Data sources</div>
               <ul style={{ paddingLeft: 20, color: 'var(--c-muted)', lineHeight: 1.9, fontSize: '0.9rem' }}>
-                <li><strong style={{ color: 'var(--c-text)' }}>FBref</strong> — Season stats (goals, xG, passes, tackles…)</li>
-                <li><strong style={{ color: 'var(--c-text)' }}>Transfermarkt</strong> — Market values (real deployment)</li>
-                <li><strong style={{ color: 'var(--c-text)' }}>Kaggle EPL dataset</strong> — Supplementary player info</li>
+                <li><strong style={{ color: 'var(--c-text)' }}>FBref / Opta (2017–2026)</strong> — Multi-season advanced metrics</li>
+                <li><strong style={{ color: 'var(--c-text)' }}>Transfermarkt (2025–26)</strong> — Official market values (N = 276)</li>
+                <li><strong style={{ color: 'var(--c-text)' }}>Kaggle EPL 2025–26</strong> — Per-90 performance statistics</li>
               </ul>
             </div>
             <div>
               <div className="label mb-8">Model pipeline</div>
               <ul style={{ paddingLeft: 20, color: 'var(--c-muted)', lineHeight: 1.9, fontSize: '0.9rem' }}>
-                <li>3-step fuzzy name-matching to merge sources</li>
-                <li>~40 engineered features (per-90, ratios, flags)</li>
-                <li>XGBoost with 5-fold cross-validation (configurable)</li>
+                <li>3-step fuzzy name-matching across all sources</li>
+                <li>3-season recency weighting (55% / 30% / 15%)</li>
+                <li>XGBoost, Random Forest &amp; Linear Regression with 5-fold CV</li>
                 <li>SHAP TreeExplainer for local + global explanations</li>
-                <li>Cosine-similarity matrix on z-scored feature vectors</li>
+                <li>Position-specific aging curves &amp; contract advisor</li>
               </ul>
             </div>
           </div>
@@ -62,7 +58,7 @@ export default function About() {
 
         {/* Limitations */}
         <div className="card mb-24">
-          <h2 className="mb-16">⚠️ Known limitations</h2>
+          <h2 className="mb-16 flex items-center gap-10"><IconAlert size={22} style={{ color: 'var(--c-yellow)' }} /> Known limitations</h2>
           <div className="grid-2" style={{ gap: 16 }}>
             {LIMITATIONS.map((l, i) => (
               <div key={i} style={{ background: 'var(--c-surface)', borderRadius: 8, padding: 16, borderLeft: '3px solid var(--c-yellow)' }}>
@@ -75,28 +71,34 @@ export default function About() {
 
         {/* For evaluators */}
         <div className="card mb-24" style={{ borderColor: 'rgba(139,92,246,0.4)', boxShadow: '0 0 20px rgba(139,92,246,0.08)' }}>
-          <h2 className="mb-12">🎓 For evaluators</h2>
+          <h2 className="mb-12 flex items-center gap-10"><IconFlask size={22} style={{ color: 'var(--c-purple)' }} /> For evaluators</h2>
           <p style={{ color: 'var(--c-muted)', marginBottom: 16, fontSize: '0.9rem' }}>
-            This tool was built as a BSc thesis prototype. If you are a study participant or evaluator, you can record
+            This tool was built as a BSc thesis research system. If you are a study participant or evaluator, you can record
             ratings and task timings using the access-code-protected Evaluation Console.
           </p>
           <Link to="/eval" className="btn btn-secondary" id="about-eval-link">
-            🔬 Open Evaluation Console
+            <IconFlask size={16} /> Open Evaluation Console
           </Link>
         </div>
 
         {/* Navigation shortcuts */}
         <div className="grid-3" style={{ gap: 16 }}>
           {[
-            { to: '/players',  icon: '🔍', label: 'Browse Players' },
-            { to: '/scout',    icon: '🎯', label: 'Scout Tool' },
-            { to: '/compare',  icon: '⚖️', label: 'Compare Players' },
-            { to: '/rankings', icon: '🏆', label: 'Rankings' },
-            { to: '/explain',  icon: '🧠', label: 'SHAP Explanations' },
-            { to: '/chat',     icon: '💬', label: 'AI Chat' },
+            { to: '/players',  Icon: IconSearch, label: 'Browse Players' },
+            { to: '/scout',    Icon: IconTarget, label: 'Scout Tool' },
+            { to: '/compare',  Icon: IconScale,  label: 'Compare Players' },
+            { to: '/rankings', Icon: IconTrophy, label: 'Rankings' },
+            { to: '/explain',  Icon: IconBrain,  label: 'SHAP Explanations' },
+            { to: '/chat',     Icon: IconChat,   label: 'AI Chat' },
           ].map(l => (
             <Link key={l.to} to={l.to} className="card card--gradient card--glow" style={{ display: 'block', textAlign: 'center', padding: '20px 16px' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: 8 }}>{l.icon}</div>
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, margin: '0 auto 10px',
+                background: 'rgba(200, 245, 66, 0.10)', color: 'var(--c-primary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <l.Icon size={20} />
+              </div>
               <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{l.label}</div>
             </Link>
           ))}
@@ -108,27 +110,19 @@ export default function About() {
 
 const LIMITATIONS = [
   {
-    title: 'Synthetic target variable',
-    text: 'The training target is computed from features + Gaussian noise. It proves the pipeline works but does not reflect true Transfermarkt valuations.',
+    title: 'Market value benchmark',
+    text: 'Market values reflect community-estimated Transfermarkt valuations rather than confidential club transfer fees.',
   },
   {
-    title: 'Single season snapshot',
-    text: 'Data covers one EPL season only. Longitudinal trends, injury history, and contract length are not included.',
+    title: 'Unobserved off-pitch factors',
+    text: 'Medical records, injury history, dressing-room leadership, and individual wage demands are not in the dataset.',
   },
   {
     title: 'EPL outfield players only',
-    text: 'Goalkeepers are excluded. The model is not calibrated for lower-league or international players.',
+    text: 'Goalkeepers are excluded. The model is calibrated specifically for Premier League outfield roles.',
   },
   {
-    title: 'Cosine similarity ≠ football suitability',
-    text: 'Similar feature vectors don\'t guarantee positional or tactical fit. A scout\'s contextual judgment is still essential.',
-  },
-  {
-    title: 'Rule-based NLU',
-    text: 'The chatbot uses regex pattern matching, not a large language model. Complex multi-hop questions may not be understood.',
-  },
-  {
-    title: 'Sample data for demo',
-    text: 'The live demo runs on synthetically generated data matching the real column schemas. Real data requires the actual CSV/Excel files.',
+    title: 'Cosine similarity ≠ tactical fit',
+    text: 'Similar statistical profiles do not guarantee system fit. A scout\'s contextual judgement remains essential.',
   },
 ]

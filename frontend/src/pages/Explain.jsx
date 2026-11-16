@@ -6,6 +6,7 @@ import {
   ScatterChart, Scatter, CartesianGrid,
 } from 'recharts'
 import { PageLoading, ErrorBox, Disclaimer, DataCaveat, SectionHead } from '../components/UI'
+import { IconBrain, IconTarget, IconChart, IconFlask, IconBook, IconInfo } from '../components/Icons'
 
 const POSITIONS = [
   { value: '',  label: 'All players' },
@@ -48,7 +49,7 @@ export default function Explain() {
     <main className="page animate-fade">
       <div className="container">
         <div className="section-head">
-          <h1>🧠 Model Explanations</h1>
+          <h1 className="flex items-center gap-12"><IconBrain size={28} style={{ color: 'var(--c-primary)' }} /> Model Explanations</h1>
           <p className="text-muted">
             SHAP global feature importance shows which stats drive estimated values most. Click a bar to see a dependence plot.
           </p>
@@ -127,7 +128,7 @@ export default function Explain() {
             <div className="card" style={{ minHeight: 300 }}>
               {!selectedFeature && (
                 <div className="empty-state" style={{ padding: 60 }}>
-                  <div className="empty-state-icon">👆</div>
+                  <div className="empty-state-icon"><IconChart size={36} /></div>
                   <h3>Click a feature</h3>
                   <p>Select a bar on the left to see how that stat affects valuations across all players.</p>
                 </div>
@@ -173,8 +174,9 @@ export default function Explain() {
                     </ResponsiveContainer>
                   </div>
                   {depData.tooltip && (
-                    <div className="alert alert-info mt-16" style={{ fontSize: '0.82rem' }}>
-                      ℹ️ <strong>{depData.label}:</strong> {depData.tooltip}
+                    <div className="alert alert-info mt-16 flex items-center gap-8" style={{ fontSize: '0.82rem' }}>
+                      <IconInfo size={16} />
+                      <span><strong>{depData.label}:</strong> {depData.tooltip}</span>
                     </div>
                   )}
                 </div>
@@ -185,11 +187,17 @@ export default function Explain() {
 
         {/* ── How SHAP works ────────────────────────────────────── */}
         <div className="card mt-32">
-          <h3 className="mb-16">📖 How SHAP works (in plain English)</h3>
+          <h3 className="mb-16 flex items-center gap-8"><IconBook size={18} style={{ color: 'var(--c-primary)' }} /> How SHAP works (in plain English)</h3>
           <div className="grid-3" style={{ gap: 20 }}>
             {SHAP_EXPLAINERS.map((e, i) => (
               <div key={i} style={{ padding: 16, background: 'var(--c-surface)', borderRadius: 8 }}>
-                <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>{e.icon}</div>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 8,
+                  background: 'rgba(200, 245, 66, 0.10)', color: 'var(--c-primary)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+                }}>
+                  <e.Icon size={18} />
+                </div>
                 <div style={{ fontWeight: 600, marginBottom: 6, fontSize: '0.95rem' }}>{e.title}</div>
                 <p className="text-muted" style={{ fontSize: '0.85rem', lineHeight: 1.6 }}>{e.text}</p>
               </div>
@@ -206,17 +214,17 @@ export default function Explain() {
 
 const SHAP_EXPLAINERS = [
   {
-    icon: '🎯',
+    Icon: IconTarget,
     title: 'What is a SHAP value?',
     text: 'A SHAP value tells you how much a specific stat pushed the model\'s estimate up or down, compared to the average player. Positive = increased value; negative = decreased value.',
   },
   {
-    icon: '📊',
+    Icon: IconChart,
     title: 'Why do the bars differ by player?',
     text: 'SHAP is computed individually per player. A high xG score matters more for a striker than for a centre-back. The waterfall on each player profile shows their personal breakdown.',
   },
   {
-    icon: '🧪',
+    Icon: IconFlask,
     title: 'Correlation ≠ causation',
     text: 'The model finds statistical patterns, not football causes. A high assist count correlates with high value, but it doesn\'t mean assisting alone makes a player expensive.',
   },

@@ -3,17 +3,18 @@ import { getRankings } from '../api'
 import { fmtValue, fmtNum } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../components/UI'
 import { Link } from 'react-router-dom'
+import { IconTrophy, IconMedal } from '../components/Icons'
 
 const RANK_OPTIONS = [
-  { value: 'estimated_value', label: '💰 Estimated Value' },
-  { value: 'goals',           label: '⚽ Goals' },
-  { value: 'assists',         label: '🎯 Assists' },
-  { value: 'xg_filled',       label: '📊 Expected Goals (xG)' },
-  { value: 'xa_filled',       label: '📊 Expected Assists (xA)' },
-  { value: 'minutes',         label: '⏱️ Minutes Played' },
-  { value: 'pass_accuracy',   label: '🎯 Pass Completion %' },
-  { value: 'tackles_won_p90', label: '🛡️ Tackles Won /90' },
-  { value: 'dribbles_p90',    label: '⚡ Dribbles /90' },
+  { value: 'estimated_value', label: 'Estimated Value' },
+  { value: 'goals',           label: 'Goals' },
+  { value: 'assists',         label: 'Assists' },
+  { value: 'xg_filled',       label: 'Expected Goals (xG)' },
+  { value: 'xa_filled',       label: 'Expected Assists (xA)' },
+  { value: 'minutes',         label: 'Minutes Played' },
+  { value: 'pass_accuracy',   label: 'Pass Completion %' },
+  { value: 'tackles_won_p90', label: 'Tackles Won /90' },
+  { value: 'dribbles_p90',    label: 'Dribbles /90' },
 ]
 
 const POSITIONS = [
@@ -22,8 +23,6 @@ const POSITIONS = [
   { value: 'M', label: 'Midfielders' },
   { value: 'F', label: 'Attackers' },
 ]
-
-const MEDAL = ['🥇', '🥈', '🥉']
 
 export default function Rankings() {
   const [rows, setRows] = useState([])
@@ -129,7 +128,7 @@ export default function Rankings() {
     <main className="page animate-fade">
       <div className="container">
         <div className="section-head">
-          <h1>🏆 Rankings</h1>
+          <h1 className="flex items-center gap-12"><IconTrophy size={28} style={{ color: 'var(--c-primary)' }} /> Rankings</h1>
           <p className="text-muted">
             League tables sorted by any metric. Filter by position, age, and minutes.
           </p>
@@ -229,7 +228,9 @@ export default function Rankings() {
                         borderTop: `3px solid ${['#c0c0c0', '#ffd700', '#cd7f32'][realIdx]}`,
                       }}
                     >
-                      <div style={{ fontSize: '2rem', marginBottom: 8 }}>{MEDAL[realIdx]}</div>
+                      <div style={{ marginBottom: 10 }}>
+                        <IconMedal rank={realIdx + 1} size={34} />
+                      </div>
                       <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 4 }}>
                         <Link to={`/players/${p.player_id}`} style={{ color: 'var(--c-text)' }}>
                           {p.player_name}
@@ -266,7 +267,7 @@ export default function Rankings() {
                   {rows.map((p, i) => (
                     <tr key={p.player_id}>
                       <td style={{ fontWeight: 700, color: i < 3 ? 'var(--c-yellow)' : 'var(--c-muted)', fontSize: '0.9rem' }}>
-                        {i < 3 ? MEDAL[i] : i + 1}
+                        {i < 3 ? <IconMedal rank={i + 1} size={22} /> : i + 1}
                       </td>
                       <td>
                         <Link to={`/players/${p.player_id}`} style={{ color: 'var(--c-primary)', fontWeight: 600 }}

@@ -11,6 +11,7 @@ import { fmtNum, fmtValue } from '../utils'
 import RadarChart from '../components/RadarChart'
 import WaterfallChart from '../components/WaterfallChart'
 import { PageLoading, ErrorBox, Disclaimer, DataCaveat } from '../components/UI'
+import { IconChart } from '../components/Icons'
 
 const POS = [
   { value: '', label: 'All' },
@@ -216,7 +217,7 @@ export default function Dashboard() {
     <main className="page animate-fade">
       <div className="container">
         <div className="section-head">
-          <h1>📊 Dashboard</h1>
+          <h1 className="flex items-center gap-12"><IconChart size={28} style={{ color: 'var(--c-primary)' }} /> Dashboard</h1>
           <p className="text-muted">
             Interactive version of the notebook visuals: model quality, listed vs estimated value, SHAP drivers,
             and per-player breakdowns. Click, filter and hover on any chart.

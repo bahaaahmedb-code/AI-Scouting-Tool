@@ -10,6 +10,9 @@ import WaterfallChart from '../components/WaterfallChart'
 import RadarChart from '../components/RadarChart'
 import { Disclaimer, Spinner } from '../components/UI'
 import { fmtNum } from '../utils'
+import {
+  IconChat, IconClipboard, IconChart, IconSparkle, IconKey, IconAlert, IconInfo,
+} from '../components/Icons'
 
 const SUGGESTIONS = [
   'What is the best attacker to buy in the range of 35 million to 55 million?',
@@ -23,18 +26,18 @@ const SUGGESTIONS = [
 ]
 
 const INTENT_LABELS = {
-  valuation: '💰 Valuation',
-  explanation: '🧠 Explanation',
-  scouting: '🎯 Scouting',
-  comparison: '⚖️ Comparison',
-  ranking: '🏆 Ranking',
-  whatif: '🔮 What-If',
-  projection: '📈 Aging & Contract Advisor',
-  glossary: '📖 Glossary',
-  howto: '🧭 Guide',
-  data_quality: '📋 Dataset',
-  out_of_scope: 'ℹ️ Scope Note',
-  clarify: '❓ Clarification',
+  valuation: 'Valuation',
+  explanation: 'SHAP Explanation',
+  scouting: 'Scouting',
+  comparison: 'Comparison',
+  ranking: 'Ranking',
+  whatif: 'What-If',
+  projection: 'Aging & Contract Advisor',
+  glossary: 'Glossary',
+  howto: 'Guide',
+  data_quality: 'Dataset',
+  out_of_scope: 'Scope Note',
+  clarify: 'Clarification',
 }
 
 const POS_COLOR = { D: '#3b82f6', M: '#10b981', F: '#ef4444' }
@@ -205,10 +208,10 @@ function ChatTable({ table }) {
       </div>
       <div className="flex gap-8 mt-8" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-ghost btn-sm" onClick={handleCopyCsv} style={{ fontSize: '0.76rem', padding: '4px 10px' }}>
-          📋 Copy CSV
+          <IconClipboard size={13} /> Copy CSV
         </button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={handleDownloadCsv} style={{ fontSize: '0.76rem', padding: '4px 10px' }}>
-          ⬇ Download CSV
+          Download CSV
         </button>
       </div>
     </div>
@@ -264,8 +267,8 @@ function ChatChart({ chart }) {
         className="flex items-center justify-between"
         style={{ padding: '8px 12px', borderBottom: open ? '1px solid var(--c-border)' : 'none' }}
       >
-        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--c-muted)' }}>
-          📊 {chartTitle}
+        <span className="flex items-center gap-6" style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--c-muted)' }}>
+          <IconChart size={14} /> {chartTitle}
         </span>
         <button
           type="button"
@@ -476,18 +479,19 @@ function ChatMessage({ msg, onSend, disabled }) {
 
       {/* Not understood hint */}
       {msg.understood === false && (!msg.suggestions || msg.suggestions.length === 0) && (
-        <div className="alert alert-warn mt-12" style={{ fontSize: '0.82rem' }}>
-          💡 Try rephrasing or ask about a specific player, valuation, scouting shortlist, or glossary term.
+        <div className="alert alert-warn mt-12 flex items-center gap-8" style={{ fontSize: '0.82rem' }}>
+          <IconInfo size={15} />
+          <span>Try rephrasing or ask about a specific player, valuation, scouting shortlist, or glossary term.</span>
         </div>
       )}
 
       {(msg.rephrased || msg.rewritten_query) && (
         <div className="flex gap-12 wrap" style={{ fontSize: '0.73rem', color: 'var(--c-subtle)', marginTop: 8 }}>
           {msg.rephrased && (
-            <span>✨ Enhanced by Gemini{msg.llm_model ? ` (${msg.llm_model})` : ''} · 100% fact-checked</span>
+            <span className="flex items-center gap-6"><IconSparkle size={13} /> Enhanced by Gemini{msg.llm_model ? ` (${msg.llm_model})` : ''} · 100% fact-checked</span>
           )}
           {msg.rewritten_query && (
-            <span>🔎 Interpreted as: <em>“{msg.rewritten_query}”</em></span>
+            <span>Interpreted as: <em>“{msg.rewritten_query}”</em></span>
           )}
         </div>
       )}
@@ -497,7 +501,7 @@ function ChatMessage({ msg, onSend, disabled }) {
 
 const WELCOME_MSG = {
   role: 'bot',
-  text: '👋 Hello! I\'m the **Moneyball EPL** assistant. Ask me anything across all tabs — **budget transfer targets** (e.g. *35m to 55m*), **player valuations & SHAP waterfalls**, **strengths & weaknesses**, **scouting shortlists**, **radar comparisons**, **club & position summaries**, **what-if scenarios**, or **model accuracy & caveats**.',
+  text: 'Hello! I\'m the **Moneyball EPL** assistant. Ask me anything across all tabs — **budget transfer targets** (e.g. *35m to 55m*), **player valuations & SHAP waterfalls**, **3-year aging & contract recommendations**, **strengths & weaknesses**, **scouting shortlists**, or **radar comparisons**.',
   understood: true,
   suggestions: [
     'What is the best attacker to buy in the range of 35 million to 55 million?',
@@ -623,10 +627,10 @@ export default function Chat() {
       setMessages(v => [...v, {
         role: 'bot',
         text: detail
-          ? `⚠️ ${detail}`
+          ? `${detail}`
           : isTimeout
-            ? '⚠️ The request timed out while waiting for Gemini. Please try sending your question again.'
-            : '⚠️ Could not reach the server. Make sure the backend API is running on port 8000.',
+            ? 'The request timed out while waiting for Gemini. Please try sending your question again.'
+            : 'Could not reach the server. Make sure the backend API is running on port 8000.',
         understood: true,
       }])
     } finally {
@@ -658,7 +662,7 @@ export default function Chat() {
     <main className="page animate-fade">
       <div className="container" style={{ maxWidth: 920 }}>
         <div className="section-head">
-          <h1>💬 AI Chat Assistant</h1>
+          <h1 className="flex items-center gap-12"><IconChat size={28} style={{ color: 'var(--c-primary)' }} /> AI Chat Assistant</h1>
           <p className="text-muted">
             Ask plain-English questions about players, valuations, scouting shortlists, what-if changes, and SHAP explanations.
           </p>
@@ -718,8 +722,8 @@ export default function Chat() {
                 title="Configure or toggle your free Google AI Studio Gemini API key"
               >
                 {gemini.configured
-                  ? (gemini.enabled ? `✨ Gemini Active (${gemini.masked_key})` : '⏸ Gemini Paused')
-                  : '🔑 Connect Free Gemini API'}
+                  ? (gemini.enabled ? <span className="flex items-center gap-6"><IconSparkle size={13} /> Gemini Active ({gemini.masked_key})</span> : 'Gemini Paused')
+                  : <span className="flex items-center gap-6"><IconKey size={13} /> Connect Free Gemini API</span>}
               </button>
               <button
                 id="chat-reset-btn"
@@ -743,8 +747,9 @@ export default function Chat() {
               fontSize: '0.82rem',
             }}>
               <div className="flex items-center justify-between wrap gap-8 mb-8">
-                <div>
-                  <strong style={{ color: '#fff' }}>✨ Google Gemini Free-Tier Integration</strong>{' '}
+                <div className="flex items-center gap-6">
+                  <IconSparkle size={15} style={{ color: 'var(--c-primary)' }} />
+                  <strong style={{ color: '#fff' }}>Google Gemini Free-Tier Integration</strong>{' '}
                   <span className="text-muted">
                     — Powered by <code>{gemini.model}</code> with strict 100% numeric fact-checking.
                   </span>
@@ -842,7 +847,7 @@ export default function Chat() {
 
         {/* ── Tips ─────────────────────────────────────────────── */}
         <div className="card mt-24" style={{ padding: 20 }}>
-          <h3 className="mb-12" style={{ fontSize: '0.95rem' }}>💡 What you can ask</h3>
+          <h3 className="mb-12 flex items-center gap-8" style={{ fontSize: '0.95rem' }}><IconInfo size={16} style={{ color: 'var(--c-primary)' }} /> What you can ask</h3>
           <div className="grid-2" style={{ gap: 12 }}>
             {CHAT_TIPS.map((t, i) => (
               <div key={i} style={{ fontSize: '0.85rem', color: 'var(--c-muted)', lineHeight: 1.6 }}>

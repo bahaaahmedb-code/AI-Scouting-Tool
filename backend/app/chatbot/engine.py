@@ -1601,15 +1601,15 @@ class ChatEngine:
         m = self.st.meta()
         F.allow("3.8", "100")
         gem_line = (
-            f"✨ **Gemini LLM status:** Connected (`{llm._resolve_models()[0]}`, key `{llm.masked_gemini_key()}`) — natural-language rewriting & phrasing are active with **100%** numeric fact-checking."
+            f"**Gemini LLM status:** Connected (`{llm._resolve_models()[0]}`, key `{llm.masked_gemini_key()}`) — natural-language rewriting & phrasing are active with **100%** numeric fact-checking."
             if llm.has_gemini_key()
-            else "🔑 **Gemini LLM status:** Ready — click **🔑 Connect Free Gemini API** at the top right of this chat and paste a free key from https://aistudio.google.com/apikey (no credit card needed) to enable `gemini-3.8-flash`!"
+            else "**Gemini LLM status:** Ready — click **Connect Free Gemini API** at the top right of this chat and paste a free key from https://aistudio.google.com/apikey (no credit card needed) to enable Gemini!"
         )
         r.text = (
-            f"👋 I'm the **Moneyball EPL AI Scouting & Valuation Assistant**!\n\n"
+            f"I'm the **Moneyball EPL AI Scouting & Valuation Assistant**!\n\n"
             f"- **Grounded data:** **{F.int(m['n_players'])}** Premier League outfield players across **{F.int(len(m['clubs']))}** clubs "
             f"({F.raw(m['season'])}, up to matchday {F.int(m['kaggle_matchday'])}; min {F.int(m['min_minutes'])} mins).\n"
-            f"- **Capabilities:** Player valuations, **TreeSHAP** waterfall explanations, strengths & weaknesses, budget transfer searches, "
+            f"- **Capabilities:** Player valuations, **TreeSHAP** waterfall explanations, 3-year aging & contract advisories, strengths & weaknesses, budget transfer searches, "
             f"cheaper lookalike scouting, radar comparisons, what-if simulations, and model CV accuracy.\n"
             f"- {gem_line}"
         )
@@ -1788,15 +1788,15 @@ class ChatEngine:
             for h in proj["history"]
         )
         r.text = (
-            f"### 📈 Multi-Season Aging & Contract Advisory: {self.who(i, F)}\n\n"
+            f"### Multi-Season Aging & Contract Advisory: {self.who(i, F)}\n\n"
             f"- **Trajectory Status:** **{proj['trajectory_label']}** *(Confidence: {proj['confidence']})*\n"
             f"- **Current 2025-26 Baseline (Age {F.int(proj['current_age'])}):** Role Performance Index **{F.num(proj['current_role_index'], 1)}/100** | Fair Value **{F.eur(proj['current_value_eur'])}**\n"
             f"- **Historical Track Record:** {hist_str if hist_str else '2025-26 Premier League season only'}\n\n"
-            f"#### 🔮 3-Year Forward Projection\n"
+            f"#### 3-Year Forward Projection\n"
             f"- **{y1['season']} (Age {F.int(y1['age'])}):** Role Index **{F.num(y1['role_index'], 1)}/100** ({F.pct(y1['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y1['estimated_value_eur'])}** ({F.pct(y1['value_change_pct'])})\n"
             f"- **{y2['season']} (Age {F.int(y2['age'])}):** Role Index **{F.num(y2['role_index'], 1)}/100** ({F.pct(y2['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y2['estimated_value_eur'])}** ({F.pct(y2['value_change_pct'])})\n"
             f"- **{y3['season']} (Age {F.int(y3['age'])}):** Role Index **{F.num(y3['role_index'], 1)}/100** ({F.pct(y3['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y3['estimated_value_eur'])}** ({F.pct(y3['value_change_pct'])})\n\n"
-            f"#### 📝 Contract Recommendation: **{c['recommended_years']}** ({c['verdict']})\n"
+            f"#### Contract Recommendation: **{c['recommended_years']}** ({c['verdict']})\n"
             f"- **Structure:** {c['contract_structure']}\n"
             f"- **Risk Level:** {c['risk_level']}\n"
             f"- **Scouting Rationale:** {F.raw(c['rationale'])}"

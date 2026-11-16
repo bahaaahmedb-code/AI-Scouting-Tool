@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { getPlayers, postScout } from '../api'
 import { fmtValue, debounce, posClass } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../components/UI'
+import { IconTarget, IconSearch, IconInfo } from '../components/Icons'
 
 const POS_MODES = [
   { value: 'same', label: 'Same position' },
@@ -106,7 +107,7 @@ export default function Scout() {
     <main className="page animate-fade">
       <div className="container">
         <div className="section-head">
-          <h1>🎯 Scouting Tool</h1>
+          <h1 className="flex items-center gap-12"><IconTarget size={28} style={{ color: 'var(--c-primary)' }} /> Scouting Tool</h1>
           <p className="text-muted">
             Find cheaper players with similar styles to any target. Uses cosine-similarity on standardised performance features.
           </p>
@@ -165,7 +166,7 @@ export default function Scout() {
                 )}
                 {targetSearched && targetSearch.trim().length >= 2 && targetSuggestions.length === 0 && (
                   <div className="alert alert-danger mt-8" style={{ padding: '8px 12px', fontSize: '0.82rem' }}>
-                    ⚠️ Value not found: No player matching "{targetSearch.trim()}" exists in the sample.
+                    Value not found: No player matching "{targetSearch.trim()}" exists in the sample.
                   </div>
                 )}
               </div>
@@ -262,7 +263,7 @@ export default function Scout() {
               onClick={run}
               disabled={!targetId || loading}
             >
-              {loading ? '⏳ Searching…' : '🎯 Find Alternatives'}
+              <IconTarget size={18} /> {loading ? 'Searching…' : 'Find Alternatives'}
             </button>
           </div>
         </div>
@@ -296,8 +297,8 @@ export default function Scout() {
 
             {/* Relaxation suggestions */}
             {results.suggestions?.map((s, si) => (
-              <div key={si} className="alert alert-warn mb-8">
-                💡 {s.text}
+              <div key={si} className="alert alert-warn mb-8 flex items-center gap-8">
+                <IconInfo size={16} /> <span>{s.text}</span>
               </div>
             ))}
 
@@ -396,7 +397,7 @@ export default function Scout() {
               </div>
             ) : (
               <div className="empty-state">
-                <div className="empty-state-icon">🔍</div>
+                <div className="empty-state-icon"><IconSearch size={36} /></div>
                 <h3>No candidates found</h3>
                 <p>Try relaxing the budget or position filters.</p>
               </div>

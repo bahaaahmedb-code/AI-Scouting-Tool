@@ -1,3 +1,5 @@
+import { IconAlert } from './Icons'
+
 /** Inline loading spinner */
 export function Spinner({ size = 40 }) {
   return (
@@ -51,20 +53,12 @@ export function Tip({ text, children }) {
 
 /** Disclaimer box shown on every valuation */
 export function Disclaimer() {
-  return (
-    <div className="alert alert-warn mt-16" role="note">
-      <strong>Research prototype:</strong> Values are model estimates on a synthetic target — they illustrate the pipeline, not real market prices. Treat outputs as directional signals for discussion, not ground truth.
-    </div>
-  )
+  return null
 }
 
 /** Caveat about data source */
-export function DataCaveat({ source }) {
-  return (
-    <div className="alert alert-info mt-8" role="note" style={{ fontSize: '0.8rem' }}>
-      <strong>Data:</strong> {source || 'Sample/synthetic data generated from real column schemas. Real data required for live deployment.'}
-    </div>
-  )
+export function DataCaveat() {
+  return null
 }
 
 /** Error box */
@@ -81,7 +75,10 @@ export function ErrorBox({ message, onReset, resetLabel = '↺ Reset filters' })
       role="alert"
       style={{ marginBottom: 16 }}
     >
-      <span>⚠️ {text || 'Value not found or invalid input. Please check your filters and try again.'}</span>
+      <span className="flex items-center gap-8">
+        <IconAlert size={17} />
+        <span>{text || 'Value not found or invalid input. Please check your filters and try again.'}</span>
+      </span>
       {onReset && (
         <button type="button" className="btn btn-secondary btn-sm" onClick={onReset}>
           {resetLabel}

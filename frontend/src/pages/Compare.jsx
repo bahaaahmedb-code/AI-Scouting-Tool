@@ -4,6 +4,7 @@ import { getPlayers, getCompare, getRadar } from '../api'
 import { fmtValue, fmtNum, debounce } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../components/UI'
 import RadarChart from '../components/RadarChart'
+import { IconScale, IconChart, IconRadar } from '../components/Icons'
 
 export default function Compare() {
   const [searchParams] = useSearchParams()
@@ -92,7 +93,7 @@ export default function Compare() {
     <main className="page animate-fade">
       <div className="container">
         <div className="section-head">
-          <h1>⚖️ Compare Players</h1>
+          <h1 className="flex items-center gap-12"><IconScale size={28} style={{ color: 'var(--c-primary)' }} /> Compare Players</h1>
           <p className="text-muted">
             Select 2–4 players for a side-by-side stats comparison and radar chart.
           </p>
@@ -173,7 +174,7 @@ export default function Compare() {
               )}
               {searched && search.trim().length >= 2 && suggestions.filter(s => !selected.includes(s.player_id)).length === 0 && (
                 <div className="alert alert-danger mt-8" style={{ padding: '8px 12px', fontSize: '0.82rem' }}>
-                  ⚠️ Value not found: No available player matching "{search.trim()}" exists in the sample.
+                  Value not found: No available player matching "{search.trim()}" exists in the sample.
                 </div>
               )}
             </div>
@@ -186,7 +187,7 @@ export default function Compare() {
               onClick={runCompare}
               disabled={selected.length < 2 || loading}
             >
-              {loading ? '⏳ Comparing…' : '⚖️ Compare'}
+              <IconScale size={16} /> {loading ? 'Comparing…' : 'Compare'}
             </button>
             <button
               className="btn btn-ghost"
@@ -206,8 +207,8 @@ export default function Compare() {
             {/* Tabs */}
             <div className="tabs">
               {[
-                { id: 'table', label: '📊 Stats Table' },
-                { id: 'radar', label: '🕸️ Radar Chart' },
+                { id: 'table', label: 'Stats Table', Icon: IconChart },
+                { id: 'radar', label: 'Radar Chart', Icon: IconRadar },
               ].map(t => (
                 <button
                   key={t.id}
@@ -215,7 +216,7 @@ export default function Compare() {
                   onClick={() => setActiveTab(t.id)}
                   id={`compare-tab-${t.id}`}
                 >
-                  {t.label}
+                  <span className="flex items-center gap-6"><t.Icon size={15} /> {t.label}</span>
                 </button>
               ))}
             </div>

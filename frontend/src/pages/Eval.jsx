@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { evalLogin, postRatings, postTask, postSus, getEvalSummary, getPlayers, postScout } from '../api'
 import { fmtValue } from '../utils'
 import { ErrorBox, PageLoading, PosChip, Disclaimer } from '../components/UI'
+import { IconFlask, IconTrophy, IconClock, IconClipboard, IconChart, IconTarget } from '../components/Icons'
 
 const SUS_QUESTIONS = [
   'I think that I would like to use this system frequently.',
@@ -167,7 +168,13 @@ export default function Eval() {
       <main className="page animate-fade">
         <div className="container" style={{ maxWidth: 480, paddingTop: 80 }}>
           <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-            <div style={{ fontSize: '3rem', marginBottom: 16 }}>🔬</div>
+            <div style={{
+              width: 56, height: 56, borderRadius: 14, margin: '0 auto 16px',
+              background: 'rgba(200, 245, 66, 0.12)', color: 'var(--c-primary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <IconFlask size={28} />
+            </div>
             <h2 className="mb-8">Evaluation Console</h2>
             <p className="text-muted mb-24">Enter the access code provided by the study administrator.</p>
             {authError && <ErrorBox message={authError} />}
@@ -195,7 +202,7 @@ export default function Eval() {
       <div className="container">
         <div className="section-head">
           <div className="flex items-center gap-12">
-            <h1>🔬 Evaluation Console</h1>
+            <h1 className="flex items-center gap-12"><IconFlask size={28} style={{ color: 'var(--c-primary)' }} /> Evaluation Console</h1>
             <span className="badge badge-green">Authenticated</span>
           </div>
           <p className="text-muted">Record scout ratings, task timings, SUS scores, and view the summary dashboard.</p>
@@ -206,10 +213,10 @@ export default function Eval() {
         {/* Tabs */}
         <div className="tabs">
           {[
-            { id: 'ratings',  label: '⭐ Scout Ratings' },
-            { id: 'tasks',    label: '⏱️ Task Timings' },
-            { id: 'sus',      label: '📋 SUS Survey' },
-            { id: 'summary',  label: '📊 Summary' },
+            { id: 'ratings',  label: 'Scout Ratings', Icon: IconTrophy },
+            { id: 'tasks',    label: 'Task Timings',  Icon: IconClock },
+            { id: 'sus',      label: 'SUS Survey',    Icon: IconClipboard },
+            { id: 'summary',  label: 'Summary',       Icon: IconChart },
           ].map(t => (
             <button
               key={t.id}
@@ -217,7 +224,7 @@ export default function Eval() {
               className={`tab${tab === t.id ? ' active' : ''}`}
               onClick={() => { setTab(t.id); setError(null); if (t.id === 'summary') loadSummary() }}
             >
-              {t.label}
+              <span className="flex items-center gap-6"><t.Icon size={15} /> {t.label}</span>
             </button>
           ))}
         </div>
@@ -260,7 +267,7 @@ export default function Eval() {
                 onClick={loadCandidates}
                 disabled={!targetId || loading}
               >
-                {loading ? '⏳ Loading…' : '🎯 Load Scout Candidates'}
+                <IconTarget size={15} /> {loading ? 'Loading…' : 'Load Scout Candidates'}
               </button>
             </div>
 
@@ -342,10 +349,10 @@ export default function Eval() {
                 </div>
 
                 {ratingSaved
-                  ? <div className="alert alert-success">✅ Ratings saved successfully!</div>
+                  ? <div className="alert alert-success">Ratings saved successfully!</div>
                   : (
                     <button id="eval-save-ratings" className="btn btn-primary" onClick={saveRatings}>
-                      💾 Save Ratings
+                      Save Ratings
                     </button>
                   )}
               </div>
@@ -412,8 +419,8 @@ export default function Eval() {
               </div>
 
               {taskSaved
-                ? <div className="alert alert-success">✅ Task logged!</div>
-                : <button id="eval-save-task" className="btn btn-primary" onClick={saveTask}>💾 Log Task</button>}
+                ? <div className="alert alert-success">Task logged!</div>
+                : <button id="eval-save-task" className="btn btn-primary" onClick={saveTask}>Log Task</button>}
             </div>
           </div>
         )}
@@ -464,8 +471,8 @@ export default function Eval() {
 
               <div className="mt-24">
                 {susSaved != null
-                  ? <div className="alert alert-success">✅ SUS score saved: <strong>{susSaved.toFixed(1)}</strong> / 100</div>
-                  : <button id="eval-save-sus" className="btn btn-primary" onClick={saveSus}>💾 Submit SUS</button>}
+                  ? <div className="alert alert-success">SUS score saved: <strong>{susSaved.toFixed(1)}</strong> / 100</div>
+                  : <button id="eval-save-sus" className="btn btn-primary" onClick={saveSus}>Submit SUS</button>}
               </div>
             </div>
           </div>

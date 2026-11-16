@@ -1,4 +1,5 @@
 import { fmtValue } from '../utils'
+import { IconTarget, IconClipboard, IconAlert, IconTrendDown } from './Icons'
 
 export default function AgingProjectionPanel({ projection }) {
   if (!projection) {
@@ -68,7 +69,7 @@ export default function AgingProjectionPanel({ projection }) {
             <div className="flex items-center gap-10 wrap mb-8">
               <span className="badge badge-blue">Multi-Season Aging &amp; Contract Advisor</span>
               <span className={`badge ${badgeClass}`}>{trajectory_label}</span>
-              {subrole && <span className="badge" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--c-text)' }}>🎯 {subrole}</span>}
+              {subrole && <span className="badge flex items-center gap-6" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--c-text)' }}><IconTarget size={13} /> {subrole}</span>}
             </div>
             <h3 style={{ fontSize: '1.35rem', marginBottom: 4 }}>
               Contract Recommendation for {name} (Age {current_age})
@@ -108,9 +109,9 @@ export default function AgingProjectionPanel({ projection }) {
             <strong>Scouting &amp; Recruitment Verdict:</strong> {contract.rationale}
           </div>
           <div className="flex gap-16 wrap" style={{ fontSize: '0.8rem', color: 'var(--c-muted)' }}>
-            <span>📋 <strong>Suggested Structure:</strong> {contract.contract_structure}</span>
-            <span>⚠️ <strong>Contract Risk:</strong> {contract.risk_level}</span>
-            <span>📉 <strong>3-Year Resale Retention:</strong> {contract.val_retention_3y_pct > 0 ? `+${contract.val_retention_3y_pct}%` : `${contract.val_retention_3y_pct}%`}</span>
+            <span className="flex items-center gap-6"><IconClipboard size={14} /> <strong>Suggested Structure:</strong> {contract.contract_structure}</span>
+            <span className="flex items-center gap-6"><IconAlert size={14} /> <strong>Contract Risk:</strong> {contract.risk_level}</span>
+            <span className="flex items-center gap-6"><IconTrendDown size={14} /> <strong>3-Year Resale Retention:</strong> {contract.val_retention_3y_pct > 0 ? `+${contract.val_retention_3y_pct}%` : `${contract.val_retention_3y_pct}%`}</span>
           </div>
         </div>
 
