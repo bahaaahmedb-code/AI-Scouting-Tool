@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "built_at": "2026-11-16T12:54:47+00:00",
+  "built_at": "2026-11-17T09:03:41+00:00",
   "settings": {
     "data_dir": "data/raw",
     "kaggle_file": "premier_league_complete_stats_until31thGameDayOnSeason2025-26.csv",
@@ -18,9 +18,10 @@
   "target_is_synthetic": false,
   "counts": {
     "all": 517,
-    "outfield": 482,
-    "min_minutes": 278,
-    "with_age": 276,
+    "outfield": 276,
+    "goalkeepers": 23,
+    "min_minutes": 301,
+    "with_age": 299,
     "kaggle_rows": 517,
     "kaggle_cols": 99,
     "fbref_rows": 551,
@@ -32,7 +33,7 @@
     "kaggle": "3922036ef28c",
     "fbref": "8b02a787d712"
   },
-  "build_seconds": 30.4,
+  "build_seconds": 21.8,
   "cv_results": {
     "Linear Regression (baseline)": {
       "cv_r2_mean": 0.765,

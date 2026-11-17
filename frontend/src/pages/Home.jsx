@@ -146,11 +146,11 @@ export default function Home() {
 }
 
 const FEATURES = [
-  { id: 'players',  to: '/players',  Icon: IconSearch, title: 'Player Profiles',   desc: 'Search 276 qualified EPL outfield players. View 3-season weighted stats, Transfermarkt value, and 3-year contract projections.' },
+  { id: 'players',  to: '/players',  Icon: IconSearch, title: 'Player Profiles',   desc: 'Search all 299 qualified EPL players and goalkeepers. View 3-season weighted stats, Transfermarkt value, and 3-year contract projections.' },
   { id: 'explain',  to: '/explain',  Icon: IconBrain,  title: 'SHAP Explanations', desc: 'Understand why the model assigned a value. Waterfall charts break down each feature\'s contribution in plain language.' },
   { id: 'scout',    to: '/scout',    Icon: IconTarget, title: 'Scouting Tool',     desc: 'Pick a target player and find similar, cheaper alternatives. Filter by position, age, and budget.' },
   { id: 'compare',  to: '/compare',  Icon: IconScale,  title: 'Side-by-Side',      desc: 'Compare up to 4 players across stats, estimated values, and a radar chart of key attributes.' },
-  { id: 'rankings', to: '/rankings', Icon: IconTrophy, title: 'Rankings',          desc: 'League tables by estimated value, goals, assists, xG, minutes, and more. Filter by club or position.' },
+  { id: 'rankings', to: '/rankings', Icon: IconTrophy, title: 'Rankings',          desc: 'League tables by estimated value, goals, assists, xG, saves, PSxG+/-, minutes, and more. Filter by club or position.' },
   { id: 'chat',     to: '/chat',     Icon: IconChat,   title: 'AI Chat',           desc: 'Ask plain-English questions about valuations, contract lengths, aging trajectories, and undervalued signings.' },
 ]
 

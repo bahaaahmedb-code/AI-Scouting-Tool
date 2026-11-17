@@ -21,9 +21,11 @@ export function PageLoading() {
   )
 }
 
-/** Position chip: D / M / F */
+/** Position chip: GK / D / M / F */
 export function PosChip({ pos }) {
-  return <span className={`pos-chip pos-${pos}`}>{pos}</span>
+  const code = pos === 'GK' ? 'G' : pos
+  const label = (pos === 'G' || pos === 'GK') ? 'GK' : pos
+  return <span className={`pos-chip pos-${code}`}>{label}</span>
 }
 
 /** Value band badge */

@@ -1,5 +1,6 @@
 import { fmtValue } from '../utils'
 import { Tip } from './UI'
+import { IconChart } from './Icons'
 
 /**
  * SHAP waterfall chart.
@@ -16,7 +17,7 @@ export default function WaterfallChart({ data }) {
 
   if (!data || !rows.length) return (
     <div className="empty-state" style={{ padding: 40 }}>
-      <div className="empty-state-icon">📊</div>
+      <div className="empty-state-icon"><IconChart size={36} /></div>
       <p>No SHAP data available for this player.</p>
     </div>
   )

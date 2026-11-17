@@ -5,39 +5,55 @@ Each player's rate features are a weighted blend of up to three seasons:
 Weights are renormalised over the seasons a player actually has, so nobody is dropped
 (a player with only 2025-26 data keeps 100 % of his current-season values).
 
-The historical seasons come from the FBref/Opta archive while 2025-26 comes from Kaggle, so the two
-sources can define a statistic slightly differently. `calibrate_history` first rescales the archive to
-the 2025-26 scale, using players who appear in both (per position), before any blending happens.
-
-Not blended (they describe the *current* situation): minutes, age, age^2, team strength, position, nation.
-The original 2025-26 values of every blended feature are kept in `<feature>_cur` columns.
+Includes both outfield players (calibrated against `fbref_historical_2018_2025.csv`) and goalkeepers
+(calibrated against `fbref_keepers_historical_2018_2025.csv`).
 """
 from __future__ import annotations
 
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
 from .aging import _find_historical_csv, _match_player_history
-from .constants import PER90_FEATURES
+from .constants import GK_FEATURES, PER90_FEATURES
 
 SEASON_WEIGHTS = {2026: 0.55, 2025: 0.30, 2024: 0.15}      # keyed by Season_End_Year
 RATIO_FEATURES = list(PER90_FEATURES)
 ADDITIVE_FEATURES = ["pass_accuracy"]
 BLEND_FEATURES = RATIO_FEATURES + ADDITIVE_FEATURES + ["start_share"]
+
+GK_RATIO_FEATURES = ["saves_p90", "goals_conceded_p90", "high_claims_p90", "long_balls_p90", "touches_p90", "ball_recovery_p90"]
+GK_ADDITIVE_FEATURES = ["save_pct", "clean_sheet_pct", "pass_accuracy", "goals_prevented_p90"]
+GK_BLEND_FEATURES = GK_RATIO_FEATURES + GK_ADDITIVE_FEATURES + ["start_share"]
+
 MIN_PAIRS_PER_POSITION = 30
 
 
-def load_history(data_path) -> pd.DataFrame | None:
+def load_history(data_path: Path) -> pd.DataFrame | None:
     p = _find_historical_csv(data_path)
     if p is None or not p.exists():
         return None
     return pd.read_csv(p, low_memory=False)
 
 
+def load_gk_history(data_path: Path) -> pd.DataFrame | None:
+    candidates = [
+        data_path / "fbref_keepers_historical_2018_2025.csv",
+        data_path.parent / "fbref_keepers_historical_2018_2025.csv",
+        data_path.parent.parent / "fbref_keepers_historical_2018_2025.csv",
+        data_path.parent.parent / "historical_datasets" / "fbref_keepers_2018_2025_merged.csv",
+    ]
+    for c in candidates:
+        if c.exists():
+            return pd.read_csv(c, low_memory=False)
+    return None
+
+
 def calibrate_history(d: pd.DataFrame, hist: pd.DataFrame, log=print) -> tuple[pd.DataFrame, dict]:
-    """Rescale archive statistics to the 2025-26 (Kaggle) scale using players present in both."""
+    """Rescale archive statistics to the 2025-26 (Kaggle) scale using outfield players present in both."""
     rows = []
-    for i in d.index:
+    outfield = d[d["position"] != "G"]
+    for i in outfield.index:
         ph = _match_player_history(d.loc[i], hist)
         ph = ph[(ph["Season_End_Year"] == 2025) & (ph["minutes"] >= 1200)]
         if ph.empty:
@@ -73,23 +89,33 @@ def calibrate_history(d: pd.DataFrame, hist: pd.DataFrame, log=print) -> tuple[p
     return hist, calib
 
 
-def blend_multiseason(d: pd.DataFrame, hist_cal: pd.DataFrame, log=print) -> tuple[pd.DataFrame, dict]:
+def blend_multiseason(d: pd.DataFrame, hist_cal: pd.DataFrame, log=print, gk_hist: pd.DataFrame | None = None) -> tuple[pd.DataFrame, dict]:
     d = d.copy()
-    for f in BLEND_FEATURES:
-        d[f + "_cur"] = d[f]
+    all_blend_cols = list(dict.fromkeys(BLEND_FEATURES + GK_FEATURES))
+    for f in all_blend_cols:
+        if f in d.columns:
+            d[f + "_cur"] = d[f]
     n_seasons = []
     for i in d.index:
-        ph = _match_player_history(d.loc[i], hist_cal)
+        pos = d.at[i, "position"]
+        if pos == "G":
+            ph = _match_player_history(d.loc[i], gk_hist) if gk_hist is not None and not gk_hist.empty else pd.DataFrame()
+            feat_list = [f for f in GK_BLEND_FEATURES if f in d.columns]
+        else:
+            ph = _match_player_history(d.loc[i], hist_cal)
+            feat_list = BLEND_FEATURES
+
         seasons: dict[int, object] = {2026: d.loc[i]}
-        for _, h in ph.iterrows():
-            y = int(h["Season_End_Year"])
-            if y in (2024, 2025) and float(h["minutes"]) >= 450:
-                seasons[y] = h
+        if not ph.empty:
+            for _, h in ph.iterrows():
+                y = int(h["Season_End_Year"])
+                if y in (2024, 2025) and float(h["minutes"]) >= 450:
+                    seasons[y] = h
         wsum = sum(SEASON_WEIGHTS[y] for y in seasons)
-        for f in BLEND_FEATURES:
+        for f in feat_list:
             num, den = 0.0, 0.0
             for y, r in seasons.items():
-                v = r[f] if f != "start_share" or y == 2026 else r.get("start_share", np.nan)
+                v = r[f] if (isinstance(r, pd.Series) and f in r.index) else (r.get(f, np.nan) if hasattr(r, "get") else np.nan)
                 if v is None or pd.isna(v):
                     continue
                 num += SEASON_WEIGHTS[y] * float(v)
@@ -102,7 +128,6 @@ def blend_multiseason(d: pd.DataFrame, hist_cal: pd.DataFrame, log=print) -> tup
     d["seasons_used"] = d["seasons_used"].astype(int)
     counts = {int(k): int(v) for k, v in pd.Series(n_seasons).value_counts().sort_index().items()}
     info = {"weights": {"2025-26": 0.55, "2024-25": 0.30, "2023-24": 0.15}, "players_by_seasons_used": counts,
-            "blended_features": BLEND_FEATURES, "not_blended": ["minutes", "age", "age_sq", "team_strength", "position", "nation_group"]}
+            "blended_features": all_blend_cols, "not_blended": ["minutes", "age", "age_sq", "team_strength", "position", "nation_group"]}
     log(f"Recency-weighted features (55/30/15): players by seasons used = {counts}")
     return d, info
-

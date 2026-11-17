@@ -6,19 +6,25 @@ import { Link } from 'react-router-dom'
 import { IconTrophy, IconMedal } from '../components/Icons'
 
 const RANK_OPTIONS = [
-  { value: 'estimated_value', label: 'Estimated Value' },
-  { value: 'goals',           label: 'Goals' },
-  { value: 'assists',         label: 'Assists' },
-  { value: 'xg_filled',       label: 'Expected Goals (xG)' },
-  { value: 'xa_filled',       label: 'Expected Assists (xA)' },
-  { value: 'minutes',         label: 'Minutes Played' },
-  { value: 'pass_accuracy',   label: 'Pass Completion %' },
-  { value: 'tackles_won_p90', label: 'Tackles Won /90' },
-  { value: 'dribbles_p90',    label: 'Dribbles /90' },
+  { value: 'estimated_value',     label: 'Estimated Value' },
+  { value: 'goals',               label: 'Goals' },
+  { value: 'assists',             label: 'Assists' },
+  { value: 'xg_filled',           label: 'Expected Goals (xG)' },
+  { value: 'xa_filled',           label: 'Expected Assists (xA)' },
+  { value: 'minutes',             label: 'Minutes Played' },
+  { value: 'pass_accuracy',       label: 'Pass Completion %' },
+  { value: 'tackles_won_p90',     label: 'Tackles Won /90' },
+  { value: 'dribbles_p90',        label: 'Dribbles /90' },
+  { value: 'goals_prevented_p90', label: 'Goals Prevented /90 (GK)' },
+  { value: 'save_pct',            label: 'Save Percentage % (GK)' },
+  { value: 'saves_p90',           label: 'Saves /90 (GK)' },
+  { value: 'clean_sheet_pct',     label: 'Clean Sheet % (GK)' },
+  { value: 'clean_sheets',        label: 'Clean Sheets Total' },
 ]
 
 const POSITIONS = [
   { value: '',  label: 'All positions' },
+  { value: 'G', label: 'Goalkeepers' },
   { value: 'D', label: 'Defenders' },
   { value: 'M', label: 'Midfielders' },
   { value: 'F', label: 'Attackers' },

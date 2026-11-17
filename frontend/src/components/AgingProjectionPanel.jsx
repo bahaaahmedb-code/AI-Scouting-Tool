@@ -32,13 +32,13 @@ export default function AgingProjectionPanel({ projection }) {
     trajectory_badge === 'blue' ? 'badge-blue' :
     trajectory_badge === 'red' ? 'badge-red' : 'badge-amber'
 
-  // SVG Trajectory Chart dimensions
-  const W = 760
-  const H = 230
-  const padL = 48
-  const padR = 36
-  const padT = 28
-  const padB = 42
+  // SVG Trajectory Chart dimensions (generous left/right/top/bottom padding so labels never clip or collide)
+  const W = 860
+  const H = 270
+  const padL = 92
+  const padR = 84
+  const padT = 44
+  const padB = 54
   const innerW = W - padL - padR
   const innerH = H - padT - padB
 
@@ -163,34 +163,44 @@ export default function AgingProjectionPanel({ projection }) {
       </div>
 
       {/* ── Visual Trajectory Chart (Historical + 3-Year Forecast) ────────── */}
-      <div className="card mb-16">
-        <div className="flex justify-between items-center wrap gap-12 mb-12">
-          <div>
-            <h3 style={{ marginBottom: 2 }}>Multi-Season Performance &amp; Valuation Trajectory (2022–2029)</h3>
-            <p className="text-muted" style={{ fontSize: '0.82rem', margin: 0 }}>
+      <div className="card mb-24" style={{ padding: '26px 28px' }}>
+        <div className="flex justify-between items-start wrap gap-16" style={{ marginBottom: 22 }}>
+          <div style={{ flex: '1 1 420px' }}>
+            <h3 style={{ marginBottom: 6 }}>Multi-Season Performance &amp; Valuation Trajectory (2022–2029)</h3>
+            <p className="text-muted" style={{ fontSize: '0.84rem', margin: 0, lineHeight: 1.5 }}>
               Solid line = verified historical Opta/FBref seasons · Dashed line = projected trajectory based on last 3 seasons + Premier League {position_name.toLowerCase()} aging curve
             </p>
           </div>
-          <div className="flex gap-16" style={{ fontSize: '0.78rem' }}>
-            <span className="flex items-center gap-6">
-              <span style={{ width: 12, height: 3, background: '#38bdf8', display: 'inline-block' }} /> Historical / Current
+          <div className="flex gap-12 wrap" style={{ fontSize: '0.8rem', marginTop: 4 }}>
+            <span className="flex items-center gap-8" style={{
+              padding: '6px 12px', borderRadius: 999,
+              background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.28)',
+              color: 'var(--c-text)', fontWeight: 600,
+            }}>
+              <span style={{ width: 16, height: 3, borderRadius: 2, background: '#38bdf8', display: 'inline-block' }} />
+              <span>Historical / Current</span>
             </span>
-            <span className="flex items-center gap-6">
-              <span style={{ width: 12, height: 3, background: '#c8f542', display: 'inline-block', borderBottom: '2px dashed #c8f542' }} /> Projected (Age +1 to +3)
+            <span className="flex items-center gap-8" style={{
+              padding: '6px 12px', borderRadius: 999,
+              background: 'rgba(200, 245, 66, 0.08)', border: '1px solid rgba(200, 245, 66, 0.28)',
+              color: 'var(--c-text)', fontWeight: 600,
+            }}>
+              <span style={{ width: 16, height: 0, borderBottom: '3px dashed #c8f542', display: 'inline-block' }} />
+              <span>Projected (Age +1 to +3)</span>
             </span>
           </div>
         </div>
 
-        <div style={{ width: '100%', overflowX: 'auto' }}>
-          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 580, height: 'auto', display: 'block' }}>
+        <div style={{ width: '100%', overflowX: 'auto', paddingTop: 4 }}>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 640, height: 'auto', display: 'block' }}>
             {/* Horizontal grid lines */}
             {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
               const val = minRole + t * (maxRole - minRole)
               const y = yRole(val)
               return (
                 <g key={i}>
-                  <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="rgba(255,255,255,0.07)" strokeDasharray="3,3" />
-                  <text x={padL - 8} y={y + 4} textAnchor="end" fill="#8fa696" fontSize="10" fontFamily="monospace">
+                  <line x1={42} y1={y} x2={W - 24} y2={y} stroke="rgba(255,255,255,0.07)" strokeDasharray="3,3" />
+                  <text x={32} y={y + 4} textAnchor="end" fill="#8fa696" fontSize="10.5" fontFamily="monospace">
                     {Math.round(val)}
                   </text>
                 </g>
@@ -201,7 +211,7 @@ export default function AgingProjectionPanel({ projection }) {
             {curIdx >= 0 && (
               <line
                 x1={xAt(curIdx)}
-                y1={padT - 8}
+                y1={padT - 14}
                 x2={xAt(curIdx)}
                 y2={H - padB}
                 stroke="rgba(200, 245, 66, 0.35)"
@@ -216,6 +226,8 @@ export default function AgingProjectionPanel({ projection }) {
                 fill="none"
                 stroke="#38bdf8"
                 strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 points={polyPoints(pastPts, 0)}
               />
             )}
@@ -226,18 +238,23 @@ export default function AgingProjectionPanel({ projection }) {
                 fill="none"
                 stroke="#c8f542"
                 strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 strokeDasharray="6,5"
                 points={polyPoints(futPts, curIdx)}
               />
             )}
 
-            {/* Points & Labels */}
+            {/* Points & Pill Labels (rendered after polylines so lines never cut through text) */}
             {timeline.map((pt, idx) => {
               const cx = xAt(idx)
               const cy = yRole(pt.role_index)
               const isProj = pt.type === 'projected'
               const isCur = pt.type === 'current'
               const dotColor = isCur ? '#ffffff' : isProj ? '#c8f542' : '#38bdf8'
+              const labelText = `${pt.role_index?.toFixed(1)} (${fmtValue(pt.estimated_value_eur)})`
+              const pillW = Math.max(96, labelText.length * 6.4 + 14)
+              const labelY = cy - 18
               return (
                 <g key={pt.season}>
                   <circle
@@ -248,22 +265,34 @@ export default function AgingProjectionPanel({ projection }) {
                     stroke="#07100c"
                     strokeWidth="2"
                   />
+                  {/* Opaque dark pill behind label so line/grid never overlaps text */}
+                  <rect
+                    x={cx - pillW / 2}
+                    y={labelY - 12}
+                    width={pillW}
+                    height={18}
+                    rx="5"
+                    fill="#0b1711"
+                    fillOpacity="0.92"
+                    stroke={isProj ? 'rgba(200, 245, 66, 0.32)' : 'rgba(56, 189, 248, 0.32)'}
+                    strokeWidth="1"
+                  />
                   {/* Role Index + Value above point */}
                   <text
                     x={cx}
-                    y={cy - 13}
+                    y={labelY}
                     textAnchor="middle"
                     fill={isProj ? '#c8f542' : '#eef5f0'}
                     fontSize="10.5"
                     fontWeight="700"
                     fontFamily="monospace"
                   >
-                    {pt.role_index?.toFixed(1)} ({fmtValue(pt.estimated_value_eur)})
+                    {labelText}
                   </text>
                   {/* Season & Age on X axis */}
                   <text
                     x={cx}
-                    y={H - padB + 16}
+                    y={H - padB + 20}
                     textAnchor="middle"
                     fill={isCur ? '#c8f542' : '#eef5f0'}
                     fontSize="11"
@@ -273,10 +302,10 @@ export default function AgingProjectionPanel({ projection }) {
                   </text>
                   <text
                     x={cx}
-                    y={H - padB + 30}
+                    y={H - padB + 36}
                     textAnchor="middle"
                     fill="#8fa696"
-                    fontSize="9.5"
+                    fontSize="10"
                   >
                     Age {pt.age} {isProj ? '(Proj)' : isCur ? '(Now)' : ''}
                   </text>
@@ -288,8 +317,13 @@ export default function AgingProjectionPanel({ projection }) {
       </div>
 
       {/* ── Season-by-Season Detailed Stat & Valuation Table ──────────────── */}
-      <div className="card">
-        <h3 className="mb-12">Season-by-Season Per-90 Breakdown (Past 3 Seasons → Next 3 Seasons)</h3>
+      <div className="card" style={{ padding: '26px 28px' }}>
+        <div style={{ marginBottom: 20 }}>
+          <h3 style={{ marginBottom: 6 }}>Season-by-Season Per-90 Breakdown (Past 3 Seasons → Next 3 Seasons)</h3>
+          <p className="text-muted" style={{ fontSize: '0.84rem', margin: 0 }}>
+            Complete historical progression and 3-year projected role index, market valuation, and key per-90 indicators.
+          </p>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
@@ -346,7 +380,7 @@ export default function AgingProjectionPanel({ projection }) {
                     {headline_metrics.map(m => (
                       <td key={m.key} style={{ fontFamily: 'var(--font-mono)' }}>
                         {row.stats?.[m.key] != null
-                          ? m.key === 'pass_accuracy'
+                          ? ['pass_accuracy', 'save_pct', 'clean_sheet_pct'].includes(m.key)
                             ? `${row.stats[m.key].toFixed(1)}%`
                             : row.stats[m.key].toFixed(2)
                           : '—'}

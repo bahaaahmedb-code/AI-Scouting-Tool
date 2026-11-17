@@ -16,14 +16,16 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..constants import CAT_FEATURES, GROUPS, NUM_FEATURES, PERF_GROUPS, POS_NAME, RADAR, RADAR_LABELS, SIM_FEATURES, TOOLTIPS, pretty
+from ..constants import (CAT_FEATURES, GK_FEATURES, GK_NUM_FEATURES, GK_RADAR, GK_RADAR_LABELS,
+                         GROUPS, NUM_FEATURES, PERF_GROUPS, POS_NAME, RADAR, RADAR_LABELS, SIM_FEATURES, TOOLTIPS, pretty)
 from ..data import norm_name
 from ..similarity import ScoutQuery
 from . import nlu
 from .facts import Facts, check_numbers
 from .glossary import GLOSSARY, HOWTO
 
-POS_PLURAL = {"D": "defenders", "M": "midfielders", "F": "forwards"}
+POS_PLURAL = {"G": "goalkeepers", "D": "defenders", "M": "midfielders", "F": "forwards"}
+ALL_NUM_FEATURES = list(dict.fromkeys(NUM_FEATURES + GK_NUM_FEATURES))
 
 
 @dataclass
@@ -592,7 +594,7 @@ class ChatEngine:
         r.subintent = "positions"
         d = self.d
         rows = []
-        for pcode in ("F", "M", "D"):
+        for pcode in ("F", "M", "D", "G"):
             g = d[d["position"] == pcode]
             if g.empty:
                 continue
@@ -603,11 +605,11 @@ class ChatEngine:
                 "avg_est": F.eur(float(g["estimated_value_eur"].mean())),
                 "med_est": F.eur(float(g["estimated_value_eur"].median())),
                 "avg_mkt": F.eur(float(g["market_value_eur"].mean())),
-                "avg_goals": F.num(float(g["goals"].mean()), 1),
+                "avg_goals": F.num(float(g["goals"].mean()), 1) if pcode != "G" else f"{F.num(float(g['save_pct'].mean()), 1)}% save",
                 "top_player": f"{self.name(top_i)} ({F.eur(float(g.at[top_i, 'estimated_value_eur']))})",
             })
         r.text = (
-            f"**Valuation & output breakdown by position** across all **{F.int(self.st.n)}** outfield players.{self.syn()}\n\n"
+            f"**Valuation & output breakdown by position** across all **{F.int(self.st.n)}** players.{self.syn()}\n\n"
             f"Use this alongside the position filter chips on the **Dashboard**, **Players**, and **Rankings** tabs."
         )
         r.table = {
@@ -617,14 +619,14 @@ class ChatEngine:
                 {"key": "avg_est", "label": "Avg Estimate"},
                 {"key": "med_est", "label": "Median Estimate"},
                 {"key": "avg_mkt", "label": "Avg Listed"},
-                {"key": "avg_goals", "label": "Avg Goals"},
+                {"key": "avg_goals", "label": "Avg Goals / Save %"},
                 {"key": "top_player", "label": "Top Player"},
             ],
             "rows": rows,
             "csv_name": "position_summary.csv",
         }
         r.actions = [{"label": "Open Dashboard", "href": "/dashboard"}]
-        r.suggestions = ["What drives valuations for defenders?", "What drives valuations for forwards?"]
+        r.suggestions = ["What drives valuations for goalkeepers?", "What drives valuations for forwards?"]
         return r
 
     def listed_vs_estimated(self, q: str, pos: str | None, s: Session, F: Facts) -> Reply:
@@ -647,7 +649,7 @@ class ChatEngine:
                 "rank": F.int(idx),
                 "name": row["player_name"],
                 "club": row["team_name"],
-                "pos": row["position"],
+                "pos": "GK" if row["position"] == "G" else row["position"],
                 "age": F.int(row["age"]),
                 "est": F.eur(float(row["estimated_value_eur"])),
                 "mkt": F.eur(float(row["market_value_eur"])),
@@ -698,9 +700,16 @@ class ChatEngine:
         mkt_gap = (est / listed - 1) * 100 if listed > 0 else 0.0
         nat_code = str(self.d.at[i, "nation"])
         nat_label = nlu.NATION_LABELS.get(nat_code, nat_code)
+        if pos == "G":
+            cs = float(self.d.at[i, "cleanSheet"])
+            sv_pct = float(self.d.at[i, "save_pct"])
+            gp_p90 = float(self.d.at[i, "goals_prevented_p90"])
+            out_line = f"- **Season output:** **{F.int(cs)}** clean sheets, **{F.fmt_feature('save_pct', sv_pct)}** save rate, **{F.num(gp_p90, 2)}** goals prevented /90 across **{F.int(mins)}** minutes.\n"
+        else:
+            out_line = f"- **Season output:** **{F.int(goals)}** goals, **{F.int(assists)}** assists across **{F.int(mins)}** minutes.\n"
         r.text = (f"{self.who(i, F)} · {nat_label}: the model estimates **{F.eur(est)}** "
                   f"(listed: {F.eur(listed)}, **{F.pct(mkt_gap)}** vs listed).{self.syn()}\n\n"
-                  f"- **Season output:** **{F.int(goals)}** goals, **{F.int(assists)}** assists across **{F.int(mins)}** minutes.\n"
+                  f"{out_line}"
                   f"- **Confidence band:** typically within {F.eur(lo)} to {F.eur(hi)} (CV MAE {F.eur(err['cv_mae_eur'])}, RMSE {F.eur(err['cv_rmse_eur'])}).\n"
                   f"- **Biggest SHAP drivers** (what the model uses, not causes): {drv}.\n"
                   f"- **Compared with other {POS_PLURAL[pos]}:** {F.pct(diff)} vs the {POS_NAME[pos].lower()} average of {F.eur(avg)}.")
@@ -743,11 +752,22 @@ class ChatEngine:
                 break
         stats_source = [s_it for s_it in prof["stats"] if s_it["group"] == chosen_group] if chosen_group else prof["key_stats"]
 
+        if row["position"] == "G":
+            totals_line = (
+                f"- **Totals:** **{F.int(row['cleanSheet'])}** clean sheets, **{F.int(row['saves'])}** saves "
+                f"(save rate **{F.fmt_feature('save_pct', row['save_pct'])}**), **{F.int(row['appearances'])}** apps, "
+                f"**{F.int(row['minutes'])}** minutes ({F.fmt_feature('start_share', row['start_share'])} started).\n"
+            )
+        else:
+            totals_line = (
+                f"- **Totals:** **{F.int(row['goals'])}** goals (xG {F.num(row['xg_filled'], 1)}), "
+                f"**{F.int(row['assists'])}** assists (xA {F.num(row['xa_filled'], 1)}), "
+                f"**{F.int(row['appearances'])}** apps, **{F.int(row['minutes'])}** minutes ({F.fmt_feature('start_share', row['start_share'])} started).\n"
+            )
+
         r.text = (
             f"{lead_line}\n\n"
-            f"- **Totals:** **{F.int(row['goals'])}** goals (xG {F.num(row['xg_filled'], 1)}), "
-            f"**{F.int(row['assists'])}** assists (xA {F.num(row['xa_filled'], 1)}), "
-            f"**{F.int(row['appearances'])}** apps, **{F.int(row['minutes'])}** minutes ({F.fmt_feature('start_share', row['start_share'])} started).\n"
+            f"{totals_line}"
             f"- **Valuation:** model estimate **{F.eur(prof['estimated_value_eur'])}** (listed {F.eur(prof['listed_value_eur'])}, "
             f"rank **#{F.int(prof['rank_in_position'])}** of {F.int(prof['n_in_position'])} {POS_PLURAL[row['position']]}).{self.syn()}"
         )
@@ -781,11 +801,11 @@ class ChatEngine:
         pos_lbl = POS_PLURAL[self.d.at[i, "position"]]
         stat_list = prof["stats"]
         strengths = sorted(
-            [s_it for s_it in stat_list if s_it["pct_in_position"] is not None and s_it["pct_in_position"] >= 75 and s_it["key"] not in ("yellow_p90", "red_p90", "dispossessed_p90")],
+            [s_it for s_it in stat_list if s_it["pct_in_position"] is not None and s_it["pct_in_position"] >= 75 and s_it["key"] not in ("yellow_p90", "red_p90", "dispossessed_p90", "goals_conceded_p90")],
             key=lambda x: -x["pct_in_position"],
         )[:6]
         weaknesses = sorted(
-            [s_it for s_it in stat_list if s_it["pct_in_position"] is not None and s_it["pct_in_position"] <= 25 and s_it["key"] not in ("yellow_p90", "red_p90", "dispossessed_p90")],
+            [s_it for s_it in stat_list if s_it["pct_in_position"] is not None and s_it["pct_in_position"] <= 25 and s_it["key"] not in ("yellow_p90", "red_p90", "dispossessed_p90", "goals_conceded_p90")],
             key=lambda x: x["pct_in_position"],
         )[:4]
         out = [f"**Strengths & Weaknesses for {self.who(i, F)}** (compared against {F.int(prof['n_in_position'])} {pos_lbl}):", ""]
@@ -818,7 +838,7 @@ class ChatEngine:
             cols.append({"key": f"pct_{idx}", "label": f"{p['name']} (Pct)"})
             cols.append({"key": f"raw_{idx}", "label": f"{p['name']} (Actual)"})
         rows = []
-        for ax_idx, (fk, label) in enumerate(zip(RADAR, RADAR_LABELS)):
+        for ax_idx, (fk, label) in enumerate(zip(rad["keys"], rad["axes"])):
             F.allow(label)
             row_d = {"metric": label}
             for p_idx, p in enumerate(rad["players"]):
@@ -838,15 +858,16 @@ class ChatEngine:
 
     def _player_breakdown(self, i, F) -> str:
         """notebook txt_player + exact waterfall £ steps"""
-        c = self.st.shap_feat.iloc[i]
+        cols = self.st._player_shap_cols(i)
+        c = self.st.shap_feat.loc[i, cols]
         wf = self.st.waterfall(i, max_display=28)
         eur_by_feat = {row["feature"]: row["eur"] for row in wf["rows"]}
         nm = self.name(i)
         est, listed = self.est(i), float(self.d.at[i, "market_value_eur"])
-        base = self.st.b["base_eur"]
+        base = float(wf["base_eur"])
 
         def line(f):
-            extra = f", {self.pos_pct_text(i, f, F)}" if f in NUM_FEATURES else ""
+            extra = f", {self.pos_pct_text(i, f, F)}" if f in ALL_NUM_FEATURES else ""
             eur_step = f" ({self._fmt_signed_eur(eur_by_feat[f], F)})" if f in eur_by_feat else ""
             return f"- **{pretty(f)}** = {F.fmt_feature(f, self.st.raw_value(i, f))}{extra} → **{F.pct(self._pc(c[f]))}**{eur_step} on value"
 
@@ -879,7 +900,8 @@ class ChatEngine:
     def explain_player(self, i, F) -> Reply:
         r = Reply("explanation", F)
         r.subintent = "player"
-        c = self.st.shap_feat.iloc[i]
+        cols = self.st._player_shap_cols(i)
+        c = self.st.shap_feat.loc[i, cols]
         wf = self.st.waterfall(i, max_display=28)
         eur_by_feat = {row["feature"]: row["eur"] for row in wf["rows"]}
         ups = c[c > 0.02].sort_values(ascending=False).head(2)
@@ -894,7 +916,7 @@ class ChatEngine:
                 f"{pretty(f)} ({F.pct(self._pc(c[f]))}, {self._fmt_signed_eur(eur_by_feat.get(f, 0.0), F)})" for f in downs.index
             ))
         r.text = (f"{self.who(i, F)} is estimated at **{F.eur(self.est(i))}**.{self.syn()} Starting from the base player "
-                  f"({F.eur(self.st.b['base_eur'])}), the estimate is " + "; ".join(bits or ["close to the average on every feature"]) +
+                  f"({F.eur(float(wf['base_eur']))}), the estimate is " + "; ".join(bits or ["close to the average on every feature"]) +
                   ".\n\n*SHAP values show what the model uses, and the Waterfall £ impacts sum step-by-step from the base value to the final estimate.*")
         r.details = self._player_breakdown(i, F)
         r.chart = {"type": "waterfall", "ids": [int(i)]}
@@ -1304,7 +1326,7 @@ class ChatEngine:
             by = "xa_filled"
         elif p["price_basis"] == "listed" and not is_buy and re.search(r"\bvalue|valuable|expensive|cheapest\b", ql):
             by = "listed_value"
-        elif feats and feats[0] in NUM_FEATURES:
+        elif feats and feats[0] in ALL_NUM_FEATURES:
             by = feats[0]
         else:
             by = "estimated_value"
@@ -1380,7 +1402,7 @@ class ChatEngine:
                         "rank": F.int(x["rank"]),
                         "name": x["name"],
                         "club": x["club"],
-                        "pos": x["position"],
+                        "pos": "GK" if x["position"] == "G" else x["position"],
                         "age": F.int(x["age"]),
                         "goals": F.int(x["goals"] or 0),
                         "assists": F.int(x["assists"] or 0),
@@ -1397,7 +1419,7 @@ class ChatEngine:
             r.table = {"columns": [{"key": "rank", "label": "#"}, {"key": "name", "label": "Player"}, {"key": "club", "label": "Club"},
                                    {"key": "pos", "label": "Pos"}, {"key": "age", "label": "Age"}, {"key": "metric", "label": res["label"]}]
                        + ([] if money else [{"key": "value", "label": "Model estimate"}]),
-                       "rows": [{"rank": F.int(x["rank"]), "name": x["name"], "club": x["club"], "pos": x["position"], "age": F.int(x["age"]),
+                       "rows": [{"rank": F.int(x["rank"]), "name": x["name"], "club": x["club"], "pos": "GK" if x["position"] == "G" else x["position"], "age": F.int(x["age"]),
                                  "metric": fmt(x["metric"]), **({} if money else {"value": F.eur(x["estimated_value_eur"])}), "_id": x["id"]}
                                 for x in res["rows"]], "csv_name": "ranking.csv"}
 
@@ -1734,7 +1756,8 @@ class ChatEngine:
         has_p90 = bool(re.search(r"(?:per|/)\s*90\b|\bp90\b", ql))
         q_clean = re.sub(r"(?:per|/)\s*90\b|\bp90\b", " ", ql)
         nums = [float(x) for x in re.findall(r"(?<![\w.])(\d+(?:\.\d+)?)(?![\w.])", q_clean)]
-        if f not in NUM_FEATURES or f == "age_sq" or not nums:
+        valid_feats = GK_NUM_FEATURES if self.d.at[i, "position"] == "G" else NUM_FEATURES
+        if f not in valid_feats or f == "age_sq" or not nums:
             r.understood = False
             r.text = f"Tell me the new value, for example *What if {self.name(i)} scored 20 goals?* or *What if {self.name(i)} had 0.5 xG per 90?*"
             return r

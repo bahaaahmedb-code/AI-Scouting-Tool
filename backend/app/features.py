@@ -13,13 +13,14 @@ def fill_xg_xa(d: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     Ported exactly: xG uses a ratio *per position* (xG per shot); xA uses ONE league-wide ratio (xA per key pass).
     """
     d = d.copy()
+    outfield = d[d["position"] != "G"]
     xg_ratio = d.groupby("position").apply(
-        lambda g: g["expectedGoals"].sum() / g.loc[g["expectedGoals"].notna(), "totalShots"].sum())
-    xa_ratio = d["expectedAssists"].sum() / d.loc[d["expectedAssists"].notna(), "keyPasses"].sum()
-    d["xg_was_filled"] = d["expectedGoals"].isna()            # NEW (provenance)
-    d["xa_was_filled"] = d["expectedAssists"].isna()          # NEW (provenance)
-    d["xg_filled"] = d["expectedGoals"].fillna(d["totalShots"] * d["position"].map(xg_ratio))
-    d["xa_filled"] = d["expectedAssists"].fillna(d["keyPasses"] * xa_ratio)
+        lambda g: g["expectedGoals"].sum() / max(g.loc[g["expectedGoals"].notna(), "totalShots"].sum(), 1.0))
+    xa_ratio = outfield["expectedAssists"].sum() / outfield.loc[outfield["expectedAssists"].notna(), "keyPasses"].sum()
+    d["xg_was_filled"] = d["expectedGoals"].isna() & (d["position"] != "G")   # NEW (provenance)
+    d["xa_was_filled"] = d["expectedAssists"].isna() & (d["position"] != "G") # NEW (provenance)
+    d["xg_filled"] = d["expectedGoals"].fillna(d["totalShots"] * d["position"].map(xg_ratio)).fillna(0.0)
+    d["xa_filled"] = d["expectedAssists"].fillna(d["keyPasses"] * xa_ratio).fillna(0.0)
     info = {"xg_ratio_by_position": {k: float(v) for k, v in xg_ratio.items()}, "xa_ratio": float(xa_ratio),
             "blank_xg": int(d["xg_was_filled"].sum()), "blank_xa": int(d["xa_was_filled"].sum())}
     return d, info
@@ -47,13 +48,32 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     for k, v in per90_src.items():
         d[k] = v / n90
 
+    # Goalkeeper-specific per-90 and percentage metrics
+    saves_col = d.get("saves", pd.Series(0.0, index=d.index)).fillna(0.0)
+    gc_col = d.get("goalsConceded", pd.Series(0.0, index=d.index)).fillna(0.0)
+    gp_col = d.get("goalsPrevented", pd.Series(0.0, index=d.index)).fillna(0.0)
+    cs_col = d.get("cleanSheet", pd.Series(0.0, index=d.index)).fillna(0.0)
+    hc_col = d.get("highClaims", pd.Series(0.0, index=d.index)).fillna(0.0)
+    pu_col = d.get("punches", pd.Series(0.0, index=d.index)).fillna(0.0)
+    lb_col = d.get("accurateLongBalls", pd.Series(0.0, index=d.index)).fillna(0.0)
+
+    d["saves_p90"] = saves_col / n90
+    d["save_pct"] = np.where((saves_col + gc_col) > 0, (saves_col / (saves_col + gc_col)) * 100.0, 0.0)
+    d["goals_prevented_p90"] = gp_col / n90
+    d["goals_conceded_p90"] = gc_col / n90
+    d["clean_sheet_pct"] = (cs_col / d["appearances"].clip(lower=1)) * 100.0
+    d["high_claims_p90"] = hc_col / n90
+    d["punches_p90"] = pu_col / n90
+    d["long_balls_p90"] = lb_col / n90
+
     d["pass_accuracy"] = d["accuratePassesPercentage"]
     d["start_share"] = d["matchesStarted"] / d["appearances"].clip(lower=1)
     d["minutes"] = d["minutesPlayed"]
     d["age_sq"] = d["age"] ** 2
-    top_nations = d["nation"].value_counts().head(6).index
+    outfield = d[d["position"] != "G"]
+    top_nations = outfield["nation"].value_counts().head(6).index
     d["nation_group"] = np.where(d["nation"].isin(top_nations), d["nation"], "OTHER")
-    d["team_strength"] = d.groupby("team_name").apply(
+    d["team_strength"] = outfield.groupby("team_name").apply(
         lambda g: np.average(g["rating"], weights=g["minutesPlayed"])).reindex(d["team_name"]).values
     info["top_nations"] = list(top_nations)
     return d, info

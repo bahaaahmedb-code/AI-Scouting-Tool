@@ -4,7 +4,19 @@ The tooltips (plain-language descriptions) are new and used by the website.
 """
 from __future__ import annotations
 
-POS_NAME = {"D": "Defender", "M": "Midfielder", "F": "Forward"}
+POS_NAME = {"G": "Goalkeeper", "D": "Defender", "M": "Midfielder", "F": "Forward"}
+
+GK_FEATURES = [
+    "saves_p90", "save_pct", "goals_prevented_p90", "goals_conceded_p90",
+    "clean_sheet_pct", "high_claims_p90", "punches_p90", "long_balls_p90",
+]
+GK_NUM_FEATURES = GK_FEATURES + ["pass_accuracy", "touches_p90", "ball_recovery_p90", "start_share", "minutes", "age", "age_sq", "team_strength"]
+GK_SIM_FEATURES = [
+    "saves_p90", "save_pct", "goals_prevented_p90", "goals_conceded_p90",
+    "clean_sheet_pct", "high_claims_p90", "long_balls_p90", "pass_accuracy", "touches_p90",
+]
+GK_RADAR = ["goals_prevented_p90", "save_pct", "saves_p90", "clean_sheet_pct", "high_claims_p90", "long_balls_p90", "pass_accuracy", "touches_p90"]
+GK_RADAR_LABELS = ["Goals prevented/90", "Save %", "Saves/90", "Clean sheet %", "High claims/90", "Long balls/90", "Pass accuracy", "Touches/90"]
 
 # notebook cell 11: per90_src  (feature -> how it is built from Kaggle columns; see features.py)
 PER90_FEATURES = [
@@ -55,10 +67,14 @@ PRETTY = {
     "dispossessed_p90": "Dispossessed /90", "touches_p90": "Touches /90", "yellow_p90": "Yellow cards /90", "red_p90": "Red cards /90",
     "pass_accuracy": "Pass accuracy %", "start_share": "Share of matches started", "minutes": "Minutes played",
     "age": "Age", "age_sq": "Age squared", "team_strength": "Team strength",
+    "saves_p90": "Saves /90", "save_pct": "Save percentage %", "goals_prevented_p90": "Goals prevented (PSxG+/-) /90",
+    "goals_conceded_p90": "Goals conceded /90", "clean_sheet_pct": "Clean sheet percentage %",
+    "high_claims_p90": "High claims /90", "punches_p90": "Punches /90", "long_balls_p90": "Accurate long balls /90",
 }
 
 # notebook cell 22
 GROUPS = {
+    "Shot stopping & command": ["saves_p90", "save_pct", "goals_prevented_p90", "goals_conceded_p90", "clean_sheet_pct", "high_claims_p90", "punches_p90", "long_balls_p90"],
     "Attacking output": ["goals_p90", "np_goals_p90", "xg_p90", "shots_p90", "shots_on_target_p90"],
     "Creativity & ball use": ["assists_p90", "xa_p90", "key_passes_p90", "big_chances_created_p90", "dribbles_p90", "was_fouled_p90", "touches_p90", "dispossessed_p90"],
     "Defending": ["tackles_p90", "tackles_won_p90", "interceptions_p90", "clearances_p90", "ball_recovery_p90", "aerial_won_p90"],
@@ -68,7 +84,7 @@ GROUPS = {
     "Age": ["age", "age_sq"],
     "Team context": ["team_strength"],
 }
-PERF_GROUPS = ["Attacking output", "Creativity & ball use", "Defending", "Discipline", "Passing"]
+PERF_GROUPS = ["Shot stopping & command", "Attacking output", "Creativity & ball use", "Defending", "Discipline", "Passing"]
 FEATURE_TO_GROUP = {f: g for g, fs in GROUPS.items() for f in fs}
 
 
@@ -136,6 +152,14 @@ TOOLTIPS = {
     "age": "Age in years (from FBref). The model also uses age squared so that value can rise and then fall with age.",
     "age_sq": "Age multiplied by itself. Lets the model learn that value peaks at a certain age.",
     "team_strength": "How strong the player's club is: the minutes-weighted average match rating of its players.",
-    "position": "Defender, midfielder or forward (goalkeepers are excluded).",
+    "position": "Goalkeeper, defender, midfielder or forward.",
     "nation_group": "Nationality, grouped into the six most common nations in the sample plus 'other'.",
+    "saves_p90": "Shots on target saved by the goalkeeper per 90 minutes.",
+    "save_pct": "Percentage of shots on target faced that the goalkeeper saved.",
+    "goals_prevented_p90": "Post-shot expected goals minus goals conceded per 90 minutes (positive means saving more than an average keeper).",
+    "goals_conceded_p90": "Goals conceded per 90 minutes played (lower is better).",
+    "clean_sheet_pct": "Percentage of appearances in which the goalkeeper kept a clean sheet (0 goals conceded).",
+    "high_claims_p90": "High crosses and aerial balls claimed cleanly per 90 minutes.",
+    "punches_p90": "High balls punched clear per 90 minutes.",
+    "long_balls_p90": "Accurate long passes / launches completed per 90 minutes.",
 }

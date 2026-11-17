@@ -147,7 +147,7 @@ h3 { font-size: 1.25rem; }
 }
 .badge-blue   { background: rgba(200,245,66,0.14); color: #d9f77a; }
 .badge-green  { background: rgba(74,222,128,0.16); color: #86efac; }
-.badge-yellow { background: rgba(251,191,36,0.16); color: #fcd34d; }
+.badge-yellow, .badge-amber { background: rgba(251,191,36,0.16); color: #fcd34d; }
 .badge-red    { background: rgba(251,113,133,0.16); color: #fda4af; }
 .badge-purple { background: rgba(167,139,250,0.16); color: #c4b5fd; }
 .badge-gray   { background: rgba(95,116,102,0.3);   color: var(--c-muted); }
@@ -230,8 +230,8 @@ h3 { font-size: 1.25rem; }
 .table-wrap { overflow-x: auto; border-radius: var(--r-md); border: 1px solid var(--c-border); }
 table { width: 100%; border-collapse: collapse; }
 thead tr { background: var(--c-surface); }
-th { padding: 12px 16px; text-align: left; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-muted); white-space: nowrap; }
-td { padding: 12px 16px; font-size: 0.88rem; border-top: 1px solid var(--c-border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+th { padding: 13px 18px; text-align: left; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--c-muted); white-space: nowrap; }
+td { padding: 13px 18px; font-size: 0.88rem; border-top: 1px solid var(--c-border); white-space: nowrap; font-variant-numeric: tabular-nums; }
 tbody tr { transition: background var(--tr); }
 tbody tr:hover { background: rgba(200,245,66,0.045); }
 .th-sort { cursor: pointer; user-select: none; }
@@ -239,10 +239,10 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 
 /* ─── Waterfall chart ────────────────────────────────────────────────────────── */
 .waterfall-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 8px 0; border-bottom: 1px solid var(--c-border);
+  display: flex; align-items: center; gap: 14px;
+  padding: 9px 0; border-bottom: 1px solid var(--c-border);
 }
-.waterfall-label { font-size: 0.85rem; flex: 0 0 180px; text-align: right; color: var(--c-text); }
+.waterfall-label { font-size: 0.85rem; flex: 0 0 195px; text-align: right; color: var(--c-text); padding-right: 4px; }
 .waterfall-bar-wrap { flex: 1; display: flex; align-items: center; position: relative; height: 28px; }
 .waterfall-bar {
   height: 22px; border-radius: 4px;
@@ -253,7 +253,7 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 }
 .waterfall-bar.pos { background: rgba(74,222,128,0.22); color: var(--c-green); border: 1px solid rgba(74,222,128,0.4); }
 .waterfall-bar.neg { background: rgba(251,113,133,0.2); color: var(--c-red); border: 1px solid rgba(251,113,133,0.35); }
-.waterfall-val { font-size: 0.8rem; font-weight: 600; flex: 0 0 70px; text-align: right; }
+.waterfall-val { font-size: 0.82rem; font-weight: 600; flex: 0 0 92px; text-align: right; }
 
 /* ─── Radar chart container ──────────────────────────────────────────────────── */
 .radar-wrap { display: flex; align-items: center; justify-content: center; }
@@ -356,8 +356,9 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 
 /* ─── Section headings ───────────────────────────────────────────────────────── */
 .section-head { margin-bottom: 32px; }
+.section-head h1 { margin-bottom: 10px; }
 .section-head h2 { margin-bottom: 8px; }
-.section-head p { color: var(--c-muted); max-width: 600px; }
+.section-head p { color: var(--c-muted); max-width: 640px; }
 
 /* ─── Grid ───────────────────────────────────────────────────────────────────── */
 .grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 24px; }
@@ -374,11 +375,11 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 .val-medium { font-family: var(--font-head); font-size: 1.6rem; font-weight: 700; }
 
 /* ─── Tab bar ────────────────────────────────────────────────────────────────── */
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--c-border); margin-bottom: 28px; }
+.tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--c-border); margin-bottom: 28px; overflow-x: auto; }
 .tab {
-  padding: 10px 16px; font-size: 0.88rem; font-weight: 500; color: var(--c-muted);
+  padding: 12px 20px; font-size: 0.88rem; font-weight: 600; color: var(--c-muted);
   border-bottom: 2px solid transparent; transition: all var(--tr); cursor: pointer;
-  margin-bottom: -1px;
+  margin-bottom: -1px; white-space: nowrap;
 }
 .tab:hover { color: var(--c-text); }
 .tab.active { color: var(--c-primary); border-bottom-color: var(--c-primary); }
@@ -423,12 +424,13 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 /* ─── Position chip ──────────────────────────────────────────────────────────── */
 .pos-chip {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border-radius: 6px;
+  min-width: 28px; height: 28px; padding: 0 6px; border-radius: 6px;
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.02em;
 }
-.pos-D { background: rgba(96,165,250,0.2); color: #93c5fd; }
-.pos-M { background: rgba(94,234,212,0.18); color: #5eead4; }
-.pos-F { background: rgba(251,146,60,0.2);  color: #fdba74; }
+.pos-G, .pos-GK { background: rgba(250, 204, 21, 0.20); color: #fde047; border: 1px solid rgba(250, 204, 21, 0.42); }
+.pos-D { background: rgba(56, 189, 248, 0.20); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.42); }
+.pos-M { background: rgba(168, 85, 247, 0.22); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.45); }
+.pos-F { background: rgba(244, 63, 94, 0.22);  color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.45); }
 
 /* ─── Search bar ─────────────────────────────────────────────────────────────── */
 .search-wrap {

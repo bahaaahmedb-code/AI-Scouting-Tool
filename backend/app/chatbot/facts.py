@@ -69,7 +69,7 @@ class Facts:
             return self.int(v)
         if f == "age":
             return self.int(v)
-        if f == "pass_accuracy":
+        if f in ("pass_accuracy", "save_pct", "clean_sheet_pct"):
             return self._add(f"{v:.1f}%", v)
         if f == "start_share":
             return self._add(f"{v * 100:.0f}% of matches", v)

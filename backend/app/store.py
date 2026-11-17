@@ -13,13 +13,21 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-from .constants import (CAT_FEATURES, GROUPS, NUM_FEATURES, PER90_FEATURES, PERF_GROUPS, POS_NAME, RADAR,
-                        RADAR_LABELS, SIM_FEATURES, TOOLTIPS, group_of, pretty)
+from .constants import (CAT_FEATURES, GK_FEATURES, GK_NUM_FEATURES, GK_RADAR, GK_RADAR_LABELS,
+                        GK_SIM_FEATURES, GROUPS, NUM_FEATURES, PER90_FEATURES, PERF_GROUPS, POS_NAME,
+                        RADAR, RADAR_LABELS, SIM_FEATURES, TOOLTIPS, group_of, pretty)
 from .data import norm_name
 from .similarity import ScoutQuery, scout, shared_strengths
 
 KEY_STATS = ["goals_p90", "xg_p90", "assists_p90", "xa_p90", "key_passes_p90", "dribbles_p90",
              "tackles_won_p90", "interceptions_p90", "aerial_won_p90", "pass_accuracy"]
+
+GK_KEY_STATS = ["goals_prevented_p90", "save_pct", "saves_p90", "clean_sheet_pct",
+                "high_claims_p90", "long_balls_p90", "pass_accuracy", "touches_p90"]
+
+ALL_NUM_FEATURES = list(dict.fromkeys(NUM_FEATURES + GK_NUM_FEATURES))
+OUTFIELD_SHAP_COLS = [f for f in NUM_FEATURES if f != "age_sq"] + CAT_FEATURES
+GK_SHAP_COLS = [f for f in GK_NUM_FEATURES if f != "age_sq"]
 
 
 def _f(x, nd=None):
@@ -99,10 +107,13 @@ class Store:
             "error": self.error, "counts": self.b["counts"], "feat_info": self.b["feat_info"],
             "train_size": len(self.b["train_idx"]), "test_size": len(self.b["test_idx"]),
             "shap_gap": _f(self.shap["gap"]), "base_eur": _f(self.b["base_eur"]), "built_at": self.b["built_at"],
-            "num_features": NUM_FEATURES, "cat_features": CAT_FEATURES, "sim_features": SIM_FEATURES,
+            "num_features": NUM_FEATURES, "gk_num_features": GK_NUM_FEATURES,
+            "cat_features": CAT_FEATURES, "sim_features": SIM_FEATURES,
             "features": [{"key": f, "label": pretty(f), "group": group_of(f), "tooltip": TOOLTIPS.get(f, "")}
-                         for f in NUM_FEATURES + CAT_FEATURES],
+                         for f in ALL_NUM_FEATURES + CAT_FEATURES],
             "groups": GROUPS, "radar": [{"key": k, "label": l} for k, l in zip(RADAR, RADAR_LABELS)],
+            "gk_radar": [{"key": k, "label": l} for k, l in zip(GK_RADAR, GK_RADAR_LABELS)],
+            "gk_model": {k: _f(v, 4) for k, v in (self.b.get("gk_model") or {}).items() if k in ("cv_r2", "cv_rmse_log")},
             "nation_groups": self.b["feat_info"]["top_nations"] + ["OTHER"],
         }
 
@@ -112,6 +123,7 @@ class Store:
         return {"id": int(i), "name": r["player_name"], "club": r["team_name"], "position": r["position"],
                 "position_name": POS_NAME[r["position"]], "age": int(r["age"]), "minutes": int(r["minutes"]),
                 "nation": r["nation"], "goals": _f(r.get("goals")), "assists": _f(r.get("assists")),
+                "clean_sheets": _f(r.get("cleanSheet")), "save_pct": _f(r.get("save_pct"), 1),
                 "estimated_value_eur": _f(r["estimated_value_eur"]),
                 "oof_value_eur": _f(r["oof_value_eur"]), "listed_value_eur": _f(r["market_value_eur"])}
 
@@ -125,15 +137,19 @@ class Store:
         idx = np.flatnonzero(m)
         qn = norm_name(q)
         if qn:
+            q_toks = set(qn.split())
             scored = []
             for i in idx:
                 k = self.keys[i]
-                if k.startswith(qn):
+                k_toks = set(k.split())
+                if k == qn or q_toks <= k_toks:
                     s = 0
-                elif any(t.startswith(qn) for t in k.split()):
+                elif k.startswith(qn):
                     s = 1
-                elif qn in k:
+                elif any(t.startswith(qn) for t in k.split()):
                     s = 2
+                elif qn in k:
+                    s = 3
                 else:
                     continue
                 scored.append((s, -d.at[i, "estimated_value_eur"], i))
@@ -157,11 +173,14 @@ class Store:
 
     def profile(self, i: int) -> dict:
         r = self.d.loc[i]
+        is_gk = r["position"] == "G"
         est = float(r["estimated_value_eur"])
         lo, hi = self.error_band(est)
         pos_avg = self.position_average(r["position"])
+        num_feats = GK_NUM_FEATURES if is_gk else NUM_FEATURES
+        key_feats = GK_KEY_STATS if is_gk else KEY_STATS
         stats = []
-        for f in NUM_FEATURES:
+        for f in num_feats:
             if f == "age_sq":
                 continue
             stats.append({"key": f, "label": pretty(f), "value": _f(r[f]), "group": group_of(f),
@@ -174,7 +193,7 @@ class Store:
             "position_avg_eur": pos_avg, "vs_position_avg_pct": (est / pos_avg - 1) * 100,
             "rank_in_position": int((self.d.loc[self.d["position"] == r["position"], "estimated_value_eur"] > est).sum()) + 1,
             "n_in_position": int((self.d["position"] == r["position"]).sum()),
-            "key_stats": [s for s in stats if s["key"] in KEY_STATS], "stats": stats,
+            "key_stats": [s for s in stats if s["key"] in key_feats], "stats": stats,
             "top_drivers": self.top_drivers(i, 3), "provenance": self.provenance(i),
             "projection": self.projection(i),
             "seasons_used": int(r["seasons_used"]) if "seasons_used" in r.index else None,
@@ -192,16 +211,24 @@ class Store:
             return self.d.at[i, "nation_group"]
         return _f(self.d.at[i, f])
 
+    def _player_shap_cols(self, i: int) -> list[str]:
+        if self.d.at[i, "position"] == "G":
+            return [c for c in GK_SHAP_COLS if c in self.shap_feat.columns]
+        return [c for c in OUTFIELD_SHAP_COLS if c in self.shap_feat.columns]
+
     def top_drivers(self, i: int, k: int = 3) -> list[dict]:
-        c = self.shap_feat.iloc[i]
+        cols = self._player_shap_cols(i)
+        c = self.shap_feat.loc[i, cols]
         order = c.abs().sort_values(ascending=False).index[:k]
         return [{"feature": f, "label": pretty(f), "contribution": _f(c[f]), "pct": _f(pct_change(c[f])),
                  "value": self.raw_value(i, f)} for f in order]
 
     def waterfall(self, i: int, merged: bool = True, max_display: int = 12) -> dict:
         base = float(self.shap["base"][i])
-        if merged:
-            c = self.shap_feat.iloc[i]
+        is_gk = self.d.at[i, "position"] == "G"
+        if merged or is_gk:
+            cols = self._player_shap_cols(i)
+            c = self.shap_feat.loc[i, cols]
             items = [(f, float(c[f]), self.raw_value(i, f)) for f in c.index]
         else:
             vals = self.shap["values"][i]
@@ -229,13 +256,20 @@ class Store:
         return {"player": self.summary(i), "base_log": base, "base_eur": math.exp(base), "prediction_log": pred,
                 "prediction_eur": math.exp(pred), "check_gap": abs(pred - model_pred), "rows": rows,
                 "groups": [{"group": g, "contribution": v, "pct": pct_change(v)} for g, v in sorted(groups.items(), key=lambda t: -abs(t[1]))],
-                "in_training": bool(i in self.train_idx)}
+                "in_training": bool(i in self.train_idx or is_gk)}
 
     def global_importance(self, position: str | None = None) -> dict:
-        mask = np.ones(self.n, dtype=bool) if not position else (self.d["position"] == position).to_numpy()
-        vals = np.abs(self.shap["values"][mask]).mean(axis=0)
-        per_col = pd.Series(vals, index=self.shap["names"]).sort_values(ascending=False)
-        merged = self.shap_feat[mask].abs().mean().sort_values(ascending=False)
+        if position == "G":
+            mask = (self.d["position"] == "G").to_numpy()
+            cols = [c for c in GK_SHAP_COLS if c in self.shap_feat.columns]
+            merged = self.shap_feat.loc[mask, cols].abs().mean().sort_values(ascending=False)
+            per_col = merged.copy()
+        else:
+            mask = (self.d["position"] != "G").to_numpy() if not position else (self.d["position"] == position).to_numpy()
+            vals = np.abs(self.shap["values"][mask]).mean(axis=0)
+            per_col = pd.Series(vals, index=self.shap["names"]).sort_values(ascending=False)
+            cols = [c for c in OUTFIELD_SHAP_COLS if c in self.shap_feat.columns]
+            merged = self.shap_feat.loc[mask, cols].abs().mean().sort_values(ascending=False)
         grp = per_col.groupby(group_of).sum().sort_values(ascending=False)
         perf = [f for f in merged.index if group_of(f) in PERF_GROUPS]
         perf_total = float(merged[perf].sum()) or 1.0
@@ -257,30 +291,49 @@ class Store:
         if feature in ("position", "nation_group"):
             return {"feature": feature, "label": pretty(feature), "tooltip": TOOLTIPS.get(feature, ""),
                     "categorical": True, "categories": summary.get("by_category", []), "points": [], "summary": summary}
+        if feature in GK_FEATURES and feature not in NUM_FEATURES:
+            idx = self.d.index[self.d["position"] == "G"]
+        elif feature in NUM_FEATURES and feature not in GK_NUM_FEATURES:
+            idx = self.d.index[self.d["position"] != "G"]
+        else:
+            idx = self.d.index
         x = self.d[feature].to_numpy(dtype=float)
         y = self.shap_feat[feature].to_numpy()
         return {"feature": feature, "label": pretty(feature), "tooltip": TOOLTIPS.get(feature, ""),
                 "categorical": False,
                 "points": [{"id": int(i), "name": self.d.at[i, "player_name"], "position": self.d.at[i, "position"],
-                            "x": _f(x[i]), "shap": _f(y[i]), "pct": _f(pct_change(y[i]))} for i in range(self.n)],
+                            "x": _f(x[i]), "shap": _f(y[i]), "pct": _f(pct_change(y[i]))} for i in idx],
                 "summary": summary}
 
     def feature_summary(self, f: str) -> dict:
         """Notebook txt_feature numbers, structured."""
-        rank = list(self.imp_feat.index).index(f) + 1
-        typ = pct_change(self.imp_feat[f])
+        if f in self.imp_feat.index:
+            rank = list(self.imp_feat.index).index(f) + 1
+            typ = pct_change(self.imp_feat[f])
+        else:
+            gk_mask = self.d["position"] == "G"
+            gk_imp = self.shap_feat.loc[gk_mask, GK_SHAP_COLS].abs().mean().sort_values(ascending=False)
+            rank = list(gk_imp.index).index(f) + 1 if f in gk_imp.index else 1
+            typ = pct_change(float(gk_imp.get(f, 0.0)))
         perf = self.b["perf_feats"]
         res = {"feature": f, "label": pretty(f), "rank": rank, "n_features": len(self.imp_feat), "typical_pct": typ,
                "perf_rank": perf.index(f) + 1 if f in perf else None, "n_perf": len(perf)}
-        shp = self.shap_feat[f]
+        if f in GK_FEATURES and f not in NUM_FEATURES:
+            sub_mask = self.d["position"] == "G"
+        elif f in NUM_FEATURES and f not in GK_NUM_FEATURES:
+            sub_mask = self.d["position"] != "G"
+        else:
+            sub_mask = pd.Series(True, index=self.d.index)
+        shp = self.shap_feat.loc[sub_mask, f]
+        d_sub = self.d.loc[sub_mask]
         if f == "position":
-            m = shp.groupby(self.d["position"]).mean().sort_values(ascending=False)
+            m = shp.groupby(d_sub["position"]).mean().sort_values(ascending=False)
             res["by_category"] = [{"category": POS_NAME[k], "pct": pct_change(v)} for k, v in m.items()]
         elif f == "nation_group":
-            m = shp.groupby(self.d["nation_group"]).mean().sort_values(ascending=False)
+            m = shp.groupby(d_sub["nation_group"]).mean().sort_values(ascending=False)
             res["by_category"] = [{"category": k, "pct": pct_change(v)} for k, v in m.items()]
         else:
-            vals = self.d[f].to_numpy(dtype=float)
+            vals = d_sub[f].to_numpy(dtype=float)
             s = shp.to_numpy()
             if f == "age":
                 by_age = pd.Series(s).groupby(np.round(vals)).agg(["mean", "size"])
@@ -298,7 +351,7 @@ class Store:
                 q1, q3 = np.nanquantile(vals, [0.25, 0.75])
                 res["top25_pct"] = pct_change(s[vals >= q3].mean())
                 res["bottom25_pct"] = pct_change(s[vals <= q1].mean())
-            pos_imp = shp.abs().groupby(self.d["position"]).mean().sort_values(ascending=False)
+            pos_imp = shp.abs().groupby(d_sub["position"]).mean().sort_values(ascending=False)
             res["most_pos"], res["most_pos_pct"] = POS_NAME[pos_imp.index[0]], pct_change(pos_imp.iloc[0])
             res["least_pos"], res["least_pos_pct"] = POS_NAME[pos_imp.index[-1]], pct_change(pos_imp.iloc[-1])
         return res
@@ -308,8 +361,11 @@ class Store:
         res = scout(self.d, self.Z, self.S, q)
         t = q.target
         zt = self.Z.iloc[t]
-        res["target"] = {**self.summary(t), "standouts": [{"feature": f, "label": pretty(f), "z": _f(zt[f])}
-                                                         for f in zt.sort_values(ascending=False).index[:3]]}
+        t_pos = self.d.at[t, "position"]
+        sim_cols = GK_SIM_FEATURES if t_pos == "G" else SIM_FEATURES
+        zt_sub = zt[[c for c in sim_cols if c in zt.index]]
+        res["target"] = {**self.summary(t), "standouts": [{"feature": f, "label": pretty(f), "z": _f(zt_sub[f])}
+                                                         for f in zt_sub.sort_values(ascending=False).index[:3]]}
         res["target_value_eur"] = float(self.d.at[t, "oof_value_eur"])
         res["max_value_eur"] = res["target_value_eur"] * q.max_pct / 100 if q.max_pct is not None else None
         res["query"] = {k: v for k, v in q.__dict__.items() if k != "exclude"}
@@ -323,30 +379,38 @@ class Store:
 
     def pair(self, a: int, b: int) -> dict:
         same = self.d.at[a, "position"] == self.d.at[b, "position"]
-        cand = np.flatnonzero((self.d["position"] == self.d.at[a, "position"]).to_numpy() & (np.arange(self.n) != a))
+        pos_a = self.d.at[a, "position"]
+        cand = np.flatnonzero((self.d["position"] == pos_a).to_numpy() & (np.arange(self.n) != a))
         rank = int((self.S[a, cand] > self.S[a, b]).sum()) + 1 if same else None
         return {"a": self.summary(a), "b": self.summary(b), "same_position": bool(same),
                 "similarity": float(self.S[a, b]), "rank": rank, "n_candidates": int(len(cand)),
-                "shared": [pretty(f) for f in shared_strengths(self.Z.iloc[a].to_numpy(), self.Z.iloc[b].to_numpy())]}
+                "shared": [pretty(f) for f in shared_strengths(
+                    self.Z.iloc[a].to_numpy(), self.Z.iloc[b].to_numpy(), k=3, pos=pos_a if same else None
+                )]}
 
     def radar(self, ids: list[int]) -> dict:
-        return {"axes": RADAR_LABELS, "keys": RADAR,
-                "players": [{**self.summary(i), "percentiles": [_f(self.radar_pct.at[i, k], 1) for k in RADAR],
-                             "raw": [_f(self.d.at[i, k]) for k in RADAR]} for i in ids],
+        all_gk = bool(ids) and all(self.d.at[i, "position"] == "G" for i in ids)
+        axes = GK_RADAR_LABELS if all_gk else RADAR_LABELS
+        keys = GK_RADAR if all_gk else RADAR
+        return {"axes": axes, "keys": keys,
+                "players": [{**self.summary(i), "percentiles": [_f(self.radar_pct.at[i, k], 1) for k in keys],
+                             "raw": [_f(self.d.at[i, k]) for k in keys]} for i in ids],
                 "note": "Percentile within the player's own position (100 = best in position)."}
 
     def compare(self, ids: list[int]) -> dict:
+        all_gk = bool(ids) and all(self.d.at[i, "position"] == "G" for i in ids)
+        stat_keys = GK_KEY_STATS if all_gk else KEY_STATS
         players = []
         for i in ids:
             s = self.summary(i)
-            s["stats"] = {f: _f(self.d.at[i, f]) for f in KEY_STATS}
+            s["stats"] = {f: _f(self.d.at[i, f]) for f in stat_keys}
             s["top_drivers"] = self.top_drivers(i, 3)
             players.append(s)
         sims = [{"a": int(a), "b": int(b), "similarity": float(self.S[a, b]),
                  "same_position": bool(self.d.at[a, "position"] == self.d.at[b, "position"])}
                 for k, a in enumerate(ids) for b in ids[k + 1:]]
         return {"players": players, "similarities": sims,
-                "stat_labels": {f: pretty(f) for f in KEY_STATS}, "radar": self.radar(ids)}
+                "stat_labels": {f: pretty(f) for f in stat_keys}, "radar": self.radar(ids)}
 
     # ------------------------------------------------------------------ rankings
     RANK_BY = {
@@ -380,6 +444,10 @@ class Store:
         "yellow_cards": "yellowCards",
         "red_cards": "redCards",
         "clean_sheets": "cleanSheet",
+        "saves": "saves",
+        "goals_prevented": "goalsPrevented",
+        "high_claims": "highClaims",
+        "goals_conceded": "goalsConceded",
         "rating": "rating",
         "totw": "totwAppearances",
         "fouls": "fouls",
@@ -388,6 +456,8 @@ class Store:
         "woodwork": "hitWoodwork",
     }
 
+    GK_ONLY_RANKINGS = set(GK_FEATURES) | {"saves", "goals_prevented", "high_claims", "goals_conceded"}
+
     def rankings(self, by: str = "estimated_value", position: str | None = None, club: str | None = None,
                  min_age: int | None = None, max_age: int | None = None, min_minutes: int | None = None,
                  n: int = 10, ascending: bool | None = None, *,
@@ -395,11 +465,13 @@ class Store:
                  price_col: str = "estimated_value_eur", nation: str | None = None) -> dict:
         d = self.d
         col = self.RANK_BY.get(by, by)
-        if col not in d.columns or (col not in self.RANK_BY.values() and col not in NUM_FEATURES):
+        if col not in d.columns or (col not in self.RANK_BY.values() and col not in ALL_NUM_FEATURES):
             raise KeyError(by)
         m = np.ones(len(d), dtype=bool)
         if position:
             m &= (d["position"] == position).to_numpy()
+        elif by in self.GK_ONLY_RANKINGS or col in self.GK_ONLY_RANKINGS:
+            m &= (d["position"] == "G").to_numpy()
         if club:
             m &= (d["team_name"] == club).to_numpy()
         if nation:
@@ -418,7 +490,7 @@ class Store:
         if max_eur is not None:
             m &= (d[pcol] <= max_eur).to_numpy()
         if ascending is None:
-            ascending = by in ("value_vs_similar", "dispossessed_p90", "yellow_p90", "red_p90")
+            ascending = by in ("value_vs_similar", "dispossessed_p90", "yellow_p90", "red_p90", "goals_conceded_p90", "goals_conceded")
         sub = d[m].sort_values(col, ascending=ascending).head(n)
         rows = [{**self.summary(i), "metric": _f(sub.at[i, col]), "rank": k + 1} for k, i in enumerate(sub.index)]
         return {
@@ -470,6 +542,10 @@ class Store:
             "yellow_cards": "Yellow cards",
             "red_cards": "Red cards",
             "clean_sheets": "Clean sheets",
+            "saves": "Total saves",
+            "goals_prevented": "Goals prevented (PSxG +/-)",
+            "high_claims": "High claims",
+            "goals_conceded": "Goals conceded",
             "rating": "Average match rating",
             "totw": "Team of the Week appearances",
             "fouls": "Fouls committed",
@@ -480,17 +556,27 @@ class Store:
 
     # ------------------------------------------------------------------ what-if
     def whatif(self, i: int, feature: str, value: float) -> dict:
-        if feature not in NUM_FEATURES or feature == "age_sq":
+        is_gk = self.d.at[i, "position"] == "G"
+        valid_feats = GK_NUM_FEATURES if is_gk else NUM_FEATURES
+        if feature not in valid_feats or feature == "age_sq":
             raise KeyError(feature)
-        X = self.d.loc[[i], NUM_FEATURES + CAT_FEATURES].copy()
-        before = float(self.d.at[i, "estimated_value_eur"])
-        X[feature] = float(value)
-        if feature == "age":
-            X["age_sq"] = float(value) ** 2
-        elif feature == "goals_p90":
-            pen_p90 = max(0.0, float(self.d.at[i, "goals_p90"] - self.d.at[i, "np_goals_p90"]))
-            X["np_goals_p90"] = max(0.0, float(value) - pen_p90)
-        after = float(np.exp(self.b["pipeline"].predict(X)[0]))
+        if is_gk:
+            X = self.d.loc[[i], GK_NUM_FEATURES].copy()
+            before = float(self.d.at[i, "estimated_value_eur"])
+            X[feature] = float(value)
+            if feature == "age":
+                X["age_sq"] = float(value) ** 2
+            after = float(np.exp(self.b["gk_model"]["pipeline"].predict(X)[0]))
+        else:
+            X = self.d.loc[[i], NUM_FEATURES + CAT_FEATURES].copy()
+            before = float(self.d.at[i, "estimated_value_eur"])
+            X[feature] = float(value)
+            if feature == "age":
+                X["age_sq"] = float(value) ** 2
+            elif feature == "goals_p90":
+                pen_p90 = max(0.0, float(self.d.at[i, "goals_p90"] - self.d.at[i, "np_goals_p90"]))
+                X["np_goals_p90"] = max(0.0, float(value) - pen_p90)
+            after = float(np.exp(self.b["pipeline"].predict(X)[0]))
         return {"player": self.summary(i), "feature": feature, "label": pretty(feature),
                 "old_value": _f(self.d.at[i, feature]), "new_value": float(value),
                 "before_eur": before, "after_eur": after, "change_pct": (after / before - 1) * 100,

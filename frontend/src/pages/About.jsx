@@ -23,7 +23,7 @@ export default function About() {
             Moneyball EPL is a full-stack scouting, valuation, and contract-advisory system for football analysts. It:
           </p>
           <ul style={{ marginTop: 16, paddingLeft: 24, color: 'var(--c-muted)', lineHeight: 2 }}>
-            <li>Estimates the market value of EPL outfield players using an <strong style={{ color: 'var(--c-text)' }}>XGBoost regression model</strong> (Test R² = 86.8%)</li>
+            <li>Estimates the market value of EPL outfield players and goalkeepers using dedicated <strong style={{ color: 'var(--c-text)' }}>XGBoost regression models</strong> (Outfield Test R² = 86.8%, Goalkeeper CV R² = 69.4%)</li>
             <li>Explains every estimate using <strong style={{ color: 'var(--c-text)' }}>SHAP (SHapley Additive exPlanations)</strong> waterfall charts</li>
             <li>Projects <strong style={{ color: 'var(--c-text)' }}>3-year aging trajectories &amp; optimal contract lengths (1–5 years)</strong> from an 8-season Big-5 archive</li>
             <li>Finds <strong style={{ color: 'var(--c-text)' }}>cheaper, stylistically similar</strong> players using cosine similarity on standardised feature vectors</li>
@@ -38,8 +38,8 @@ export default function About() {
             <div>
               <div className="label mb-8">Data sources</div>
               <ul style={{ paddingLeft: 20, color: 'var(--c-muted)', lineHeight: 1.9, fontSize: '0.9rem' }}>
-                <li><strong style={{ color: 'var(--c-text)' }}>FBref / Opta (2017–2026)</strong> — Multi-season advanced metrics</li>
-                <li><strong style={{ color: 'var(--c-text)' }}>Transfermarkt (2025–26)</strong> — Official market values (N = 276)</li>
+                <li><strong style={{ color: 'var(--c-text)' }}>FBref / Opta (2017–2026)</strong> — Multi-season outfield &amp; keeper metrics</li>
+                <li><strong style={{ color: 'var(--c-text)' }}>Transfermarkt (2025–26)</strong> — Official market values (N = 299)</li>
                 <li><strong style={{ color: 'var(--c-text)' }}>Kaggle EPL 2025–26</strong> — Per-90 performance statistics</li>
               </ul>
             </div>
@@ -118,8 +118,8 @@ const LIMITATIONS = [
     text: 'Medical records, injury history, dressing-room leadership, and individual wage demands are not in the dataset.',
   },
   {
-    title: 'EPL outfield players only',
-    text: 'Goalkeepers are excluded. The model is calibrated specifically for Premier League outfield roles.',
+    title: 'Minimum playing-time threshold',
+    text: 'Players and goalkeepers with fewer than 900 league minutes in 2025–26 are excluded to prevent noisy per-90 rates.',
   },
   {
     title: 'Cosine similarity ≠ tactical fit',

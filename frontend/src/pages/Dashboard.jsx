@@ -11,15 +11,16 @@ import { fmtNum, fmtValue } from '../utils'
 import RadarChart from '../components/RadarChart'
 import WaterfallChart from '../components/WaterfallChart'
 import { PageLoading, ErrorBox, Disclaimer, DataCaveat } from '../components/UI'
-import { IconChart } from '../components/Icons'
+import { IconChart, IconInfo } from '../components/Icons'
 
 const POS = [
   { value: '', label: 'All' },
+  { value: 'G', label: 'Goalkeepers' },
   { value: 'D', label: 'Defenders' },
   { value: 'M', label: 'Midfielders' },
   { value: 'F', label: 'Attackers' },
 ]
-const POS_COLOR = { D: '#60a5fa', M: '#5eead4', F: '#fb923c' }
+const POS_COLOR = { G: '#facc15', D: '#38bdf8', M: '#a855f7', F: '#f43f5e' }
 const RADAR_COLORS = ['#c8f542', '#5eead4']
 
 function fmtPercentile(n) {
@@ -29,11 +30,11 @@ function fmtPercentile(n) {
 
 function fmtRawStat(axis, v) {
   if (v == null) return '—'
-  if (axis.toLowerCase().includes('accuracy')) return `${fmtNum(v, 1)}%`
+  if (axis.toLowerCase().includes('accuracy') || axis.includes('%')) return `${fmtNum(v, 1)}%`
   if (axis.includes('/90')) return `${fmtNum(v, 2)} /90`
   return fmtNum(v, 2)
 }
-const POS_NAME = { D: 'Defenders', M: 'Midfielders', F: 'Attackers' }
+const POS_NAME = { G: 'Goalkeepers', D: 'Defenders', M: 'Midfielders', F: 'Attackers' }
 const TIP = {
   background: 'var(--c-card2)', border: '1px solid var(--c-border2)', borderRadius: 8, fontSize: '0.82rem',
 }
@@ -136,7 +137,11 @@ export default function Dashboard() {
   useEffect(() => {
     getGlobalImportance(impPos || undefined).then(d => {
       setImportance(d)
-      setFeature(prev => prev ?? d.merged?.find(m => m.feature !== 'position' && m.feature !== 'nation_group')?.feature ?? null)
+      setFeature(prev => {
+        const valid = prev && d.merged?.some(m => m.feature === prev)
+        if (valid) return prev
+        return d.merged?.find(m => m.feature !== 'position' && m.feature !== 'nation_group')?.feature ?? null
+      })
     }).catch(() => {})
   }, [impPos])
 
@@ -209,7 +214,7 @@ export default function Dashboard() {
   if (error) return <main className="page"><div className="container"><ErrorBox message={error} /></div></main>
 
   const err = meta.error ?? {}
-  const scatterPlayersByPos = ['D', 'M', 'F'].map(k => ({
+  const scatterPlayersByPos = ['G', 'D', 'M', 'F'].map(k => ({
     k, rows: scatterData.filter(p => p.position === k),
   })).filter(g => g.rows.length)
 
@@ -336,11 +341,11 @@ export default function Dashboard() {
           </div>
           {!importance ? <PageLoading /> : (
             <div className="grid-2" style={{ gap: 24, alignItems: 'start' }}>
-              <div style={{ height: Math.max(300, importanceRows.length * 26 + 40) }}>
+              <div style={{ height: Math.max(320, importanceRows.length * 30 + 44) }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={importanceRows} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }}>
+                  <BarChart data={importanceRows} layout="vertical" margin={{ left: 8, right: 24, top: 6, bottom: 6 }}>
                     <XAxis type="number" tick={AXIS} tickFormatter={v => v.toFixed(2)} />
-                    <YAxis type="category" dataKey="label" width={170} tick={{ fill: 'var(--c-text)', fontSize: 11 }} interval={0} />
+                    <YAxis type="category" dataKey="label" width={205} tick={{ fill: 'var(--c-text)', fontSize: 11.5 }} interval={0} />
                     <Tooltip contentStyle={TIP} cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                       formatter={(v, n, p) => [`${v.toFixed(3)} log pts (≈ ±${fmtNum(p.payload.pct, 0)}% value)`, 'Mean |SHAP|']} />
                     <Bar dataKey="mean_abs" radius={[0, 4, 4, 0]} cursor="pointer"
@@ -351,8 +356,8 @@ export default function Dashboard() {
                       {importanceRows.map((r, i) => {
                         const active = r.feature ? r.feature === feature : (r.topFeature && r.topFeature === feature)
                         return (
-                          <Cell key={i} fill={active ? '#f59e0b' : (POS_COLOR[impPos] ?? '#3b82f6')}
-                            opacity={active ? 1 : 0.8} />
+                          <Cell key={i} fill={active ? '#c8f542' : (POS_COLOR[impPos] ?? '#2dd4bf')}
+                            opacity={active ? 1 : 0.82} />
                         )
                       })}
                     </Bar>
@@ -363,13 +368,13 @@ export default function Dashboard() {
               <div>
                 {!feature && (
                   <div className="empty-state" style={{ padding: 40 }}>
-                    <div className="empty-state-icon">👆</div>
+                    <div className="empty-state-icon"><IconChart size={36} /></div>
                     <p>Click a feature bar to see its dependence plot.</p>
                   </div>
                 )}
                 {feature && depLoading && <PageLoading />}
                 {feature && !depLoading && dep && (() => {
-                  const posKeys = impPos ? [impPos] : ['D', 'M', 'F']
+                  const posKeys = impPos ? [impPos] : ['G', 'D', 'M', 'F']
                   const posList = (importance.merged ?? []).filter(m => !impPos || m.feature !== 'position')
                   const posRankIdx = posList.findIndex(m => m.feature === dep.feature)
                   const visibleCount = impPos ? dep.points.filter(p => p.position === impPos).length : dep.points.length
@@ -463,8 +468,10 @@ export default function Dashboard() {
             <p className="mb-12">
               <Link to={`/players/${sel.id}`} style={{ color: 'var(--c-primary)', fontWeight: 700 }}>{sel.name}</Link>
               <span className="text-muted"> · {sel.club} · {POS_NAME[sel.position]} · {sel.age}y · </span>
-              {sel.goals ?? '—'} goals, {sel.assists ?? '—'} assists · estimated{' '}
-              <strong style={{ color: 'var(--c-accent)' }}>{fmtValue(sel.estimated_value_eur)}</strong>
+              {sel.position === 'G'
+                ? `${sel.clean_sheets ?? 0} clean sheets, ${sel.save_pct ?? '—'}% save rate`
+                : `${sel.goals ?? '—'} goals, ${sel.assists ?? '—'} assists`}{' '}
+              · estimated <strong style={{ color: 'var(--c-accent)' }}>{fmtValue(sel.estimated_value_eur)}</strong>
             </p>
           )}
           <div style={{ maxWidth: 640 }}><WaterfallChart data={waterfall} /></div>
@@ -537,8 +544,11 @@ export default function Dashboard() {
                   </table>
                 </div>
               )}
-              <div className="alert alert-info mt-12" style={{ fontSize: '0.81rem', padding: '10px 14px', lineHeight: 1.5 }}>
-                <strong>💡 What is a Percentile?</strong> A percentile shows the <strong>percentage of Premier League peers in the same position</strong> that a player outperforms. For example, <strong>94%</strong> means the player performs better than <strong>94%</strong> of players in their position (<strong>100%</strong> = top in position, <strong>50%</strong> = position average), while <strong>Actual Stat</strong> shows their real on-pitch match output.
+              <div className="alert alert-info mt-16 flex items-start gap-8" style={{ fontSize: '0.81rem', padding: '12px 16px', lineHeight: 1.55 }}>
+                <IconInfo size={16} style={{ marginTop: 2 }} />
+                <div>
+                  <strong>What is a Percentile?</strong> A percentile shows the <strong>percentage of Premier League peers in the same position</strong> that a player outperforms. For example, <strong>94%</strong> means the player performs better than <strong>94%</strong> of players in their position (<strong>100%</strong> = top in position, <strong>50%</strong> = position average), while <strong>Actual Stat</strong> shows their real on-pitch match output.
+                </div>
               </div>
             </div>
           </div>

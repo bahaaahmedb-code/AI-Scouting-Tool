@@ -10,12 +10,13 @@ import { IconBrain, IconTarget, IconChart, IconFlask, IconBook, IconInfo } from 
 
 const POSITIONS = [
   { value: '',  label: 'All players' },
+  { value: 'G', label: 'Goalkeepers' },
   { value: 'D', label: 'Defenders' },
   { value: 'M', label: 'Midfielders' },
   { value: 'F', label: 'Forwards' },
 ]
 
-const COLORS_POS = { D: '#3b82f6', M: '#10b981', F: '#ef4444', '': '#3b82f6' }
+const COLORS_POS = { G: '#facc15', D: '#38bdf8', M: '#a855f7', F: '#f43f5e', '': '#2dd4bf' }
 
 export default function Explain() {
   const [pos, setPos] = useState('')
@@ -81,12 +82,12 @@ export default function Explain() {
               <p className="text-muted mb-20" style={{ fontSize: '0.85rem' }}>
                 Average absolute SHAP value across all players. Longer bar = larger impact on valuations.
               </p>
-              <div style={{ height: 420 }}>
+              <div style={{ height: Math.max(440, (importance.merged?.length || 15) * 28 + 40) }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={importance.merged}
                     layout="vertical"
-                    margin={{ left: 16, right: 32, top: 8, bottom: 8 }}
+                    margin={{ left: 8, right: 32, top: 8, bottom: 8 }}
                   >
                     <XAxis
                       type="number"
@@ -94,8 +95,9 @@ export default function Explain() {
                       tickFormatter={v => v.toFixed(3)}
                     />
                     <YAxis
-                      type="category" dataKey="label" width={160}
-                      tick={{ fill: 'var(--c-text)', fontSize: 11 }}
+                      type="category" dataKey="label" width={205}
+                      tick={{ fill: 'var(--c-text)', fontSize: 11.5 }}
+                      interval={0}
                     />
                     <Tooltip
                       contentStyle={{ background: 'var(--c-card2)', border: '1px solid var(--c-border2)', borderRadius: 8 }}
@@ -111,8 +113,8 @@ export default function Explain() {
                       {(importance.merged ?? []).map((entry, index) => (
                         <Cell
                           key={index}
-                          fill={entry.feature === selectedFeature ? '#f59e0b' : barColor}
-                          opacity={entry.feature === selectedFeature ? 1 : 0.75}
+                          fill={entry.feature === selectedFeature ? '#c8f542' : barColor}
+                          opacity={entry.feature === selectedFeature ? 1 : 0.82}
                         />
                       ))}
                     </Bar>

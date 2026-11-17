@@ -14,12 +14,31 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
-from .constants import RADAR, SIM_FEATURES
+from .constants import GK_RADAR, GK_SIM_FEATURES, RADAR, SIM_FEATURES
+
+ALL_SIM_FEATURES = list(dict.fromkeys(SIM_FEATURES + GK_SIM_FEATURES))
+ALL_RADAR = list(dict.fromkeys(RADAR + GK_RADAR))
 
 
 def position_zscores(d: pd.DataFrame) -> pd.DataFrame:
-    """Each statistic converted to a z-score within the player's position."""
-    return d.groupby("position")[SIM_FEATURES].transform(lambda s: (s - s.mean()) / s.std()).fillna(0)
+    """Each statistic converted to a z-score within the player's position.
+    Goalkeepers use GK_SIM_FEATURES (with 0 on outfield-only cols); outfield players use SIM_FEATURES (with 0 on GK-only cols).
+    """
+    Z = pd.DataFrame(0.0, index=d.index, columns=ALL_SIM_FEATURES)
+    out_mask = d["position"] != "G"
+    gk_mask = d["position"] == "G"
+    if out_mask.any():
+        Z.loc[out_mask, SIM_FEATURES] = (
+            d.loc[out_mask].groupby("position")[SIM_FEATURES].transform(lambda s: (s - s.mean()) / s.std()).fillna(0.0)
+        )
+    if gk_mask.any():
+        Z.loc[gk_mask, GK_SIM_FEATURES] = (
+            d.loc[gk_mask, GK_SIM_FEATURES].apply(lambda s: (s - s.mean()) / s.std()).fillna(0.0)
+        )
+        # Invert goals_conceded_p90 so fewer goals conceded is a positive z-score strength
+        if "goals_conceded_p90" in Z.columns:
+            Z.loc[gk_mask, "goals_conceded_p90"] = -Z.loc[gk_mask, "goals_conceded_p90"]
+    return Z
 
 
 def similarity_matrix(Z: pd.DataFrame) -> np.ndarray:
@@ -27,13 +46,14 @@ def similarity_matrix(Z: pd.DataFrame) -> np.ndarray:
 
 
 def radar_percentiles(d: pd.DataFrame) -> pd.DataFrame:
-    return d.groupby("position")[RADAR].rank(pct=True) * 100
+    pct = d.groupby("position")[ALL_RADAR].rank(pct=True) * 100
+    return pct
 
 
 def shared_strengths(z_a: np.ndarray, z_b: np.ndarray, k: int = 3) -> list[str]:
     both = np.minimum(z_a, z_b)
     order = np.argsort(-both)
-    return [SIM_FEATURES[j] for j in order[:k] if both[j] > 0]
+    return [ALL_SIM_FEATURES[j] for j in order[:k] if both[j] > 0]
 
 
 @dataclass

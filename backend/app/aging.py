@@ -17,12 +17,22 @@ import math
 import numpy as np
 import pandas as pd
 
-from .constants import CAT_FEATURES, NUM_FEATURES, PER90_FEATURES, POS_NAME, pretty
+from .constants import CAT_FEATURES, GK_FEATURES, GK_NUM_FEATURES, NUM_FEATURES, PER90_FEATURES, POS_NAME, pretty
 from .data import find_file, norm_name
 
-# Sub-role weights so hybrid midfielders/wingers (like Salah/Palmer) or ball-playing CBs (like Saliba/Van Dijk)
-# are evaluated on their true specialist profile rather than penalized for not doing a different role's tasks.
+# Sub-role weights so hybrid midfielders/wingers (like Salah/Palmer), ball-playing CBs (like Saliba/Van Dijk),
+# or shot-stopping/sweeper goalkeepers (like Raya/Alisson/Pickford) are evaluated on their true specialist profile.
 SUBROLE_PROFILES: dict[str, list[tuple[str, dict[str, float]]]] = {
+    "G": [
+        ("Shot-Stopper / Command Goalkeeper", {
+            "goals_prevented_p90": 0.30, "save_pct": 0.25, "saves_p90": 0.18,
+            "clean_sheet_pct": 0.15, "high_claims_p90": 0.12,
+        }),
+        ("Sweeper / Ball-Playing Goalkeeper", {
+            "pass_accuracy": 0.24, "clean_sheet_pct": 0.22, "goals_prevented_p90": 0.20,
+            "save_pct": 0.16, "touches_p90": 0.10, "high_claims_p90": 0.08,
+        }),
+    ],
     "F": [
         ("Goalscorer / Striker", {
             "np_goals_p90": 0.30, "xg_p90": 0.28, "shots_on_target_p90": 0.16,
@@ -64,12 +74,14 @@ SUBROLE_PROFILES: dict[str, list[tuple[str, dict[str, float]]]] = {
 }
 
 ROLE_HEADLINE_METRICS: dict[str, list[str]] = {
+    "G": ["goals_prevented_p90", "save_pct", "saves_p90", "clean_sheet_pct", "high_claims_p90", "pass_accuracy", "minutes"],
     "F": ["np_goals_p90", "xg_p90", "xa_p90", "shots_on_target_p90", "dribbles_p90", "minutes"],
     "M": ["key_passes_p90", "xa_p90", "np_goals_p90", "pass_accuracy", "ball_recovery_p90", "tackles_won_p90", "minutes"],
     "D": ["tackles_won_p90", "interceptions_p90", "clearances_p90", "aerial_won_p90", "pass_accuracy", "minutes"],
 }
 
 PEAK_AGE_RANGE: dict[str, tuple[int, int]] = {
+    "G": (27, 33),
     "F": (24, 28),
     "M": (25, 29),
     "D": (26, 30),
@@ -110,58 +122,60 @@ def _fit_position_aging_curves(hist: pd.DataFrame) -> dict:
         suffixes=("_t0", "_t1"),
     )
 
-    stat_cols = PER90_FEATURES + ["pass_accuracy", "minutes", "start_share"]
+    stat_cols = PER90_FEATURES + GK_FEATURES + ["pass_accuracy", "minutes", "start_share"]
     curves: dict[str, dict[int, dict[str, float]]] = {}
 
-    for pos in ("D", "M", "F"):
+    for pos in ("G", "D", "M", "F"):
         peak_lo, peak_hi = PEAK_AGE_RANGE[pos]
-        pos_pairs = pairs[pairs["position_t0"] == pos]
+        pos_pairs = pairs[pairs["position_t0"] == pos] if "position_t0" in pairs.columns else pd.DataFrame()
         curves[pos] = {}
-        for age in range(17, 40):
-            sub = pos_pairs[pos_pairs["age_int_t0"].between(age - 1, age + 1)]
+        for age in range(17, 41):
+            sub = pos_pairs[pos_pairs["age_int_t0"].between(age - 1, age + 1)] if not pos_pairs.empty else pd.DataFrame()
             n_emp = len(sub)
             emp_weight = min(0.45, n_emp / 140.0)
 
             if age < peak_lo:
-                # Developing player (18..peak_lo-1): both per-90 output and playing time incline
-                dev_boost = 0.045 * ((peak_lo - age) / max(1, peak_lo - 18))
+                dev_boost = 0.040 * ((peak_lo - age) / max(1, peak_lo - 18))
                 prior_rate_mult = 1.0 + dev_boost
                 prior_min_mult = 1.0 + min(0.06, dev_boost * 1.2)
-                prior_acc_delta = +0.30
+                prior_acc_delta = +0.25
             elif age <= peak_hi:
-                # Prime plateau window (peak_lo..peak_hi): sustained peak output & minutes
                 mid_peak = 0.5 * (peak_lo + peak_hi)
-                prior_rate_mult = 1.012 if age <= mid_peak else 0.996
-                prior_min_mult = 1.005 if age <= mid_peak else 0.995
-                prior_acc_delta = +0.10
+                prior_rate_mult = 1.010 if age <= mid_peak else 0.997
+                prior_min_mult = 1.005 if age <= mid_peak else 0.996
+                prior_acc_delta = +0.08
             else:
-                # Post-peak aging curve (steeper for forwards, gentler for defenders)
                 yrs_over = age - peak_hi
-                decay_scale = {"F": 0.025, "M": 0.020, "D": 0.015}[pos]
-                min_scale = {"F": 0.028, "M": 0.023, "D": 0.018}[pos]
+                decay_scale = {"F": 0.025, "M": 0.020, "D": 0.015, "G": 0.012}[pos]
+                min_scale = {"F": 0.028, "M": 0.023, "D": 0.018, "G": 0.014}[pos]
                 prior_rate_mult = max(0.80, 1.0 - decay_scale * (yrs_over ** 1.15))
                 prior_min_mult = max(0.76, 1.0 - min_scale * (yrs_over ** 1.18))
-                prior_acc_delta = -0.12 * max(0, yrs_over - 2)
+                prior_acc_delta = -0.10 * max(0, yrs_over - 2)
 
             age_deltas: dict[str, float] = {}
             for col in stat_cols:
                 c0, c1 = f"{col}_t0", f"{col}_t1"
-                if col == "pass_accuracy":
-                    emp_d = float((sub[c1] - sub[c0]).median()) if n_emp >= 10 else prior_acc_delta
+                has_cols = (c0 in sub.columns) and (c1 in sub.columns) and (sub[c0].notna().sum() >= 10)
+                if col in ("pass_accuracy", "save_pct", "clean_sheet_pct"):
+                    emp_d = float((sub[c1] - sub[c0]).median()) if (has_cols and n_emp >= 10) else prior_acc_delta
                     emp_d = float(np.clip(emp_d, -1.5, 1.5))
                     age_deltas[col] = emp_weight * emp_d + (1.0 - emp_weight) * prior_acc_delta
+                elif col == "goals_prevented_p90":
+                    # Additive per-90 delta for PSxG+/-
+                    prior_gp_d = +0.015 if age < peak_lo else (0.005 if age <= peak_hi else -0.02 * (age - peak_hi))
+                    emp_d = float((sub[c1] - sub[c0]).median()) if (has_cols and n_emp >= 10) else prior_gp_d
+                    age_deltas[col] = float(np.clip(emp_weight * emp_d + (1.0 - emp_weight) * prior_gp_d, -0.08, 0.05))
                 elif col in ("minutes", "start_share"):
-                    # In prime or pre-peak years, do not let mid-season rotation noise drag minutes down
                     if age <= peak_hi:
                         age_deltas[col] = prior_min_mult
                     else:
-                        if n_emp >= 10 and sub[c0].median() > 0:
+                        if has_cols and n_emp >= 10 and sub[c0].median() > 0:
                             emp_m = float(np.clip(sub[c1].median() / sub[c0].median(), 0.78, 1.02))
                         else:
                             emp_m = prior_min_mult
                         age_deltas[col] = min(prior_min_mult + 0.01, emp_weight * emp_m + (1.0 - emp_weight) * prior_min_mult)
                 else:
-                    if n_emp >= 10 and sub[c0].mean() > 1e-4:
+                    if has_cols and n_emp >= 10 and sub[c0].mean() > 1e-4:
                         emp_m = float(np.clip(sub[c1].mean() / sub[c0].mean(), 0.82, 1.15))
                     else:
                         emp_m = prior_rate_mult
@@ -351,12 +365,8 @@ def _recommend_contract(age: int, pos: str, subrole: str, perf_now: float, perf_
 
 
 def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, hist: pd.DataFrame | None = None,
-                            blended: bool = False) -> dict:
-    """Build multi-season history + 3-year forward projections for all 276 players in `d`.
-
-    `blended=True` means `d` already holds recency-weighted (55/30/15) features, so the projection starts
-    from that multi-season baseline and the 2025-26 raw values are read from the `<feature>_cur` columns.
-    """
+                            blended: bool = False, gk_pipe=None, gk_hist: pd.DataFrame | None = None) -> dict:
+    """Build multi-season history + 3-year forward projections for all players (outfield + goalkeepers) in `d`."""
     hist_csv = _find_historical_csv(data_path)
     if hist is not None:
         log(f"Using calibrated multi-season archive ({len(hist)} player-seasons)")
@@ -367,7 +377,8 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
         hist = pd.read_csv(hist_csv, low_memory=False)
         log(f"Loaded historical multi-season dataset ({len(hist)} player-seasons) from {hist_csv.name}")
 
-    curve_meta = _fit_position_aging_curves(hist)
+    combined_hist = pd.concat([hist, gk_hist], ignore_index=True) if (gk_hist is not None and not gk_hist.empty) else hist
+    curve_meta = _fit_position_aging_curves(combined_hist)
     curves = curve_meta["curves"]
 
     player_projections: dict[int, dict] = {}
@@ -377,17 +388,22 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
     for i in range(len(d)):
         row = d.loc[i]
         pos = row["position"]
+        is_gk = (pos == "G")
+        active_pipe = gk_pipe if (is_gk and gk_pipe is not None) else pipe
+        active_num_cols = GK_NUM_FEATURES if is_gk else NUM_FEATURES
+        active_cat_cols = [] if is_gk else CAT_FEATURES
+        active_rate_cols = GK_FEATURES if is_gk else PER90_FEATURES
         pos_sub = d[d["position"] == pos]
         subrole_name, subrole_weights = _select_subrole(row, pos, d)
 
         age_now = int(round(float(row["age"])))
         est_now = float(row["estimated_value_eur"])
-        # Because 2025-26 is through Matchday 31 (~81% of a 38-game season), benchmark full-season availability at 2000m for 2025-26
         perf_now = _score_with_weights(row, subrole_weights, pos_sub, full_season_minutes=2000.0)
         head_cols = ROLE_HEADLINE_METRICS.get(pos, ROLE_HEADLINE_METRICS["M"])
 
         # 1. Match historical seasons (2022-23, 2023-24, 2024-25)
-        p_hist = _match_player_history(row, hist)
+        target_hist = gk_hist if (is_gk and gk_hist is not None and not gk_hist.empty) else hist
+        p_hist = _match_player_history(row, target_hist)
         if not p_hist.empty and (p_hist["Season_End_Year"] == 2025).any():
             matched_2425 += 1
         if not p_hist.empty and (p_hist["Season_End_Year"] == 2024).any():
@@ -396,16 +412,15 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
         history_seasons: list[dict] = []
         for _, hrow in p_hist.iterrows():
             h_perf = _score_with_weights(hrow, subrole_weights, pos_sub, full_season_minutes=2400.0)
-            X_h = row[NUM_FEATURES + CAT_FEATURES].to_frame().T.copy()
-            for col in PER90_FEATURES + ["pass_accuracy", "minutes", "start_share"]:
-                if col in hrow and pd.notna(hrow[col]):
+            X_h = row[active_num_cols + active_cat_cols].to_frame().T.copy()
+            for col in active_rate_cols + ["pass_accuracy", "touches_p90", "ball_recovery_p90", "minutes", "start_share"]:
+                if col in X_h.columns and col in hrow and pd.notna(hrow[col]):
                     X_h[col] = float(hrow[col])
-            # Scale 38-match historical minutes to 31-matchday equivalent so the 2025-26 model pipeline evaluates on the same minute scale
             X_h["minutes"] = float(np.clip(float(hrow["minutes"]) * (31.0 / 38.0), 450.0, 2790.0))
             h_age = float(hrow["age"]) if pd.notna(hrow["age"]) else float(age_now - (2026 - int(hrow["Season_End_Year"])))
             X_h["age"] = h_age
             X_h["age_sq"] = h_age ** 2
-            h_val = float(np.exp(pipe.predict(X_h)[0]))
+            h_val = float(np.exp(active_pipe.predict(X_h)[0]))
 
             history_seasons.append({
                 "season": str(hrow["season"]),
@@ -443,21 +458,18 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
         else:
             personal_idx_slope = 0.0
 
-        # Baseline for the projection. When `d` is already recency-weighted (blended=True) it IS the multi-season
-        # baseline. Otherwise blend 72% current + 28% most recent historical season here.
-        sim_row = row[NUM_FEATURES + CAT_FEATURES].copy()
+        sim_row = row[active_num_cols + active_cat_cols].copy()
         if not blended and not p_hist.empty:
             recent_hist = p_hist.iloc[-1]
-            for col in PER90_FEATURES + ["pass_accuracy"]:
-                if col in recent_hist and pd.notna(recent_hist[col]):
+            for col in active_rate_cols + ["pass_accuracy"]:
+                if col in sim_row.index and col in recent_hist and pd.notna(recent_hist[col]):
                     sim_row[col] = 0.72 * float(row[col]) + 0.28 * float(recent_hist[col])
 
-        # Feature-level personal annual multiplier
         personal_feat_mult: dict[str, float] = {}
         if not p_hist.empty:
             earliest = p_hist.iloc[0]
             span_f = max(1.0, 2026.0 - float(earliest["Season_End_Year"]))
-            for col in PER90_FEATURES:
+            for col in active_rate_cols:
                 v_now = float(sim_row[col])
                 v_old = float(earliest[col]) if col in earliest and pd.notna(earliest[col]) else v_now
                 if v_old > 0.05 and v_now > 0.05:
@@ -466,30 +478,33 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
                 else:
                     personal_feat_mult[col] = 1.0
         else:
-            for col in PER90_FEATURES:
+            for col in active_rate_cols:
                 personal_feat_mult[col] = 1.0
 
         base_personal_w = 0.30 if n_seasons_used >= 3 else (0.18 if n_seasons_used == 2 else 0.0)
         peak_lo, peak_hi = PEAK_AGE_RANGE[pos]
 
-        # Recompute starting score & valuation of the multi-season anchor at current age so future deltas are smooth
-        anchor_val_now = float(np.exp(pipe.predict(sim_row[NUM_FEATURES + CAT_FEATURES].to_frame().T)[0]))
+        anchor_val_now = float(np.exp(active_pipe.predict(sim_row[active_num_cols + active_cat_cols].to_frame().T)[0]))
         anchor_perf_now = _score_with_weights(sim_row, subrole_weights, pos_sub, full_season_minutes=2000.0)
-        # Update current_entry role_index to reflect the player's true multi-season stabilized current level
         perf_now = round(0.75 * perf_now + 0.25 * anchor_perf_now, 1)
         current_entry["role_index"] = perf_now
 
         future_seasons: list[dict] = []
         for step in (1, 2, 3):
             target_age = age_now + step
-            lookup_age = min(39, max(17, target_age - 1))
+            lookup_age = min(40, max(17, target_age - 1))
             pos_curve = curves[pos][lookup_age]
             w_pers = base_personal_w * (0.60 ** (step - 1))
 
-            for col in PER90_FEATURES + ["pass_accuracy", "minutes", "start_share"]:
-                c_delta = pos_curve[col]
-                if col == "pass_accuracy":
-                    sim_row[col] = float(np.clip(float(sim_row[col]) + c_delta, 55.0, 96.5))
+            for col in active_rate_cols + ["pass_accuracy", "minutes", "start_share"]:
+                if col not in sim_row.index:
+                    continue
+                c_delta = pos_curve.get(col, 1.0)
+                if col in ("pass_accuracy", "save_pct", "clean_sheet_pct"):
+                    lo_b, hi_b = (20.0, 85.0) if col == "clean_sheet_pct" else (45.0, 96.5)
+                    sim_row[col] = float(np.clip(float(sim_row[col]) + c_delta, lo_b, hi_b))
+                elif col == "goals_prevented_p90":
+                    sim_row[col] = float(np.clip(float(sim_row[col]) + c_delta, -0.45, 0.45))
                 elif col in ("minutes", "start_share"):
                     if col == "minutes":
                         sim_row[col] = float(np.clip(float(sim_row[col]) * c_delta, 450.0, 2790.0))
@@ -502,7 +517,7 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
                     elif target_age <= peak_hi and p_mult < 0.98:
                         p_mult = max(0.98, p_mult)
                     blended_mult = (1.0 - w_pers) * c_delta + w_pers * p_mult
-                    if col in ("dispossessed_p90", "yellow_p90", "red_p90"):
+                    if col in ("dispossessed_p90", "yellow_p90", "red_p90", "goals_conceded_p90"):
                         sim_row[col] = float(sim_row[col])
                     else:
                         sim_row[col] = max(0.0, float(sim_row[col]) * blended_mult)
@@ -510,15 +525,17 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
             sim_row["age"] = float(target_age)
             sim_row["age_sq"] = float(target_age ** 2)
 
-            X_fut = sim_row[NUM_FEATURES + CAT_FEATURES].to_frame().T
-            raw_fut_val = float(np.exp(pipe.predict(X_fut)[0]))
-            # Anchor the relative valuation ratio to the player's actual 2025-26 estimated_value_eur
+            X_fut = sim_row[active_num_cols + active_cat_cols].to_frame().T
+            raw_fut_val = float(np.exp(active_pipe.predict(X_fut)[0]))
             val_ratio = raw_fut_val / max(anchor_val_now, 1e5)
+            # Apply a gentle post-peak market discount for veteran goalkeepers/outfielders past their peak window
+            if target_age > peak_hi:
+                age_disc = (0.92 ** max(0, target_age - peak_hi))
+                val_ratio = min(val_ratio, age_disc)
             fut_val = est_now * val_ratio
 
             fut_perf = _score_with_weights(sim_row, subrole_weights, pos_sub, full_season_minutes=2000.0)
             fut_year = 2026 + step
-            # Project full 38-game season minutes for display
             disp_mins = int(round(min(3420.0, float(sim_row["minutes"]) * (38.0 / 31.0))))
 
             future_seasons.append({

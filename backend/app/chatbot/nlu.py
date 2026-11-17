@@ -39,10 +39,18 @@ FEATURE_WORDS = {
     "position": "position", "nationality": "nation_group", "nation": "nation_group",
     # NEW
     "starts": "start_share", "share of matches started": "start_share", "headers": "aerial_won_p90",
+    # Goalkeeper features
+    "saves": "saves_p90", "save percentage": "save_pct", "save pct": "save_pct", "save rate": "save_pct",
+    "goals prevented": "goals_prevented_p90", "psxg": "goals_prevented_p90", "post shot xg": "goals_prevented_p90",
+    "goals conceded": "goals_conceded_p90", "clean sheet percentage": "clean_sheet_pct", "clean sheet rate": "clean_sheet_pct",
+    "high claims": "high_claims_p90", "crosses claimed": "high_claims_p90", "punches": "punches_p90",
+    "long balls": "long_balls_p90", "accurate long balls": "long_balls_p90",
 }
 _phrases = sorted(FEATURE_WORDS, key=len, reverse=True)
 
-POS_WORDS = {"defender": "D", "defenders": "D", "midfielder": "M", "midfielders": "M", "forward": "F", "forwards": "F",
+POS_WORDS = {"goalkeeper": "G", "goalkeepers": "G", "keeper": "G", "keepers": "G", "gk": "G", "gks": "G",
+             "goalie": "G", "goalies": "G", "shot stopper": "G", "shot stoppers": "G",
+             "defender": "D", "defenders": "D", "midfielder": "M", "midfielders": "M", "forward": "F", "forwards": "F",
              "striker": "F", "strikers": "F", "attacker": "F", "attackers": "F", "winger": "F", "wingers": "F",
              "centre back": "D", "center back": "D", "centre backs": "D", "full back": "D", "fullback": "D", "cb": "D",
              "midfield": "M", "defence": "D", "defense": "D"}
@@ -388,13 +396,13 @@ def parse_scout_params(q: str) -> dict:
 
     # 5. Count N
     m = (re.search(r"\b(?:top|best|first|list|show)\s+(\d{1,2})\b" + NOT_MONEY, ql)
-         or re.search(r"\b(\d{1,2})\s+(?:\w+\s+)?(?:players|forwards|midfielders|defenders|attackers|strikers|alternatives|options|replacements|candidates|names)\b", ql))
+         or re.search(r"\b(\d{1,2})\s+(?:\w+\s+)?(?:players|goalkeepers|keepers|forwards|midfielders|defenders|attackers|strikers|alternatives|options|replacements|candidates|names)\b", ql))
     if m:
         p["n"] = max(1, min(25, int(m.group(1))))
         p["n_given"] = True
     else:
         for w, k in NUMW.items():
-            if re.search(rf"\b{w}\s+(?:\w+\s+)?(?:players?|forwards?|midfielders?|defenders?|attackers?|strikers?|alternatives?|options?|replacements?|candidates?)\b|\b(?:top|best|first)\s+{w}\b", ql):
+            if re.search(rf"\b{w}\s+(?:\w+\s+)?(?:players?|goalkeepers?|keepers?|forwards?|midfielders?|defenders?|attackers?|strikers?|alternatives?|options?|replacements?|candidates?)\b|\b(?:top|best|first)\s+{w}\b", ql):
                 p["n"] = k
                 p["n_given"] = True
                 break
@@ -420,6 +428,9 @@ PROFILE_WORDS = {
     "accurate passing": ["pass_accuracy"], "on the ball": ["touches_p90", "pass_accuracy"], "involved": ["touches_p90"],
     "shoots a lot": ["shots_p90"], "shooter": ["shots_p90", "shots_on_target_p90"], "assists": ["assists_p90", "xa_p90"],
     "recovers the ball": ["ball_recovery_p90"], "presses": ["ball_recovery_p90", "tackles_p90"],
+    "shot stopper": ["goals_prevented_p90", "save_pct", "saves_p90"], "shot stopping": ["goals_prevented_p90", "save_pct", "saves_p90"],
+    "sweeper keeper": ["pass_accuracy", "touches_p90", "high_claims_p90"], "ball playing keeper": ["pass_accuracy", "long_balls_p90", "touches_p90"],
+    "commands his box": ["high_claims_p90", "punches_p90"],
 }
 VAGUE_WORDS = {"attacking": ("scoring (xG, goals)", "creating (xA, key passes)"),
                "good": ("scoring", "creating chances"), "complete": ("attacking output", "defending"),
@@ -465,7 +476,6 @@ OUT_OF_SCOPE = [
     (r"\binjur|\bfitness\b|\bmedical\b", "injury"),
     (r"\bwages?\b|\bsalary|\bagent\b", "contract"),
     (r"\breputation|\bfamous|\bpopular|\bsocial media|\bfollowers|\bpersonality|\battitude|\boff[- ]field|\bcharacter\b", "reputation"),
-    (r"\bgoalkeeper|\bkeeper\b|\bgk\b", "goalkeeper"),
 ]
 
 PROJECTION_RE = re.compile(
@@ -527,7 +537,7 @@ DEFINE_RE = re.compile(r"\bwhat (?:is|are|does|'?s)\b|\bwhat is meant by\b|\bdef
                        r"\bexplain (?:the term|what)\b|\bwhat do you mean\b")
 DATA_RE = re.compile(r"\bsource|\bfiles?\b|\bfbref\b|\bkaggle\b|\bfilled\b|\bmissing\b|\bmatchday|\bgame ?day|"
                      r"\b(?:which|what) season\b|\bseason cover|"
-                     r"\bcover(?:s|age)?\b|\bhow many players\b|\bhow many (?:defenders|midfielders|forwards|attackers)\b|\bexcluded|"
+                     r"\bcover(?:s|age)?\b|\bhow many players\b|\bhow many (?:goalkeepers|keepers|defenders|midfielders|forwards|attackers)\b|\bexcluded|"
                      r"\bnot in (?:the )?(?:sample|data|list)|\bwhy (?:is|isn'?t) .* (?:not )?(?:in|included)|\bcolumns?\b|\bsample size\b|"
                      r"\bdata quality\b|\bwhere does the data\b|\bup to date\b|\bhow many .* (?:are there|return|match|pass)")
 RANK_RE = re.compile(r"\btop\b|\bbest\b|\bhighest\b|\blowest\b|\bmost\b|\bfewest\b|\bleast\b|\brank|\blist\b|"

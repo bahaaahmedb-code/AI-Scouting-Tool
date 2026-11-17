@@ -8,6 +8,7 @@ import { IconTarget, IconSearch, IconInfo } from '../components/Icons'
 const POS_MODES = [
   { value: 'same', label: 'Same position' },
   { value: 'any',  label: 'Any position' },
+  { value: 'G',    label: 'Goalkeepers only' },
   { value: 'D',    label: 'Defenders only' },
   { value: 'M',    label: 'Midfielders only' },
   { value: 'F',    label: 'Forwards only' },

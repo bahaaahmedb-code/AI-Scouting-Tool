@@ -6,6 +6,7 @@ Martín Zubimendi,75000000.0,423440,Martín Zubimendi,Arsenal FC,2026-06-03
 Martin Ødegaard,65000000.0,316264,Martin Ødegaard,Arsenal FC,2026-06-03
 Eberechi Eze,65000000.0,479999,Eberechi Eze,Arsenal FC,2026-06-03
 William Saliba,100000000.0,495666,William Saliba,Arsenal FC,2026-06-03
+David Raya,30000000.0,262749,David Raya,Arsenal FC,2026-06-03
 Piero Hincapié,50000000.0,659813,Piero Hincapié,Arsenal FC,2026-06-03
 Jurriën Timber,70000000.0,420243,Jurriën Timber,Arsenal FC,2026-06-03
 Leandro Trossard,18000000.0,144028,Leandro Trossard,Arsenal FC,2026-06-03
@@ -22,6 +23,7 @@ Rúben Dias,55000000.0,258004,Rúben Dias,Manchester City,2026-06-03
 Antoine Semenyo,80000000.0,583255,Antoine Semenyo,Manchester City,2026-06-03
 Phil Foden,70000000.0,406635,Phil Foden,Manchester City,2026-06-03
 Joško Gvardiol,70000000.0,475959,Josko Gvardiol,Manchester City,2026-06-03
+Gianluigi Donnarumma,45000000.0,315858,Gianluigi Donnarumma,Manchester City,2026-06-03
 Nicolás González,40000000.0,466805,Nico González,Manchester City,2026-06-03
 Matheus Nunes,50000000.0,601883,Matheus Nunes,Manchester City,2026-06-03
 Bernardo Silva,22000000.0,241641,Bernardo Silva,Manchester City,2026-06-03
@@ -33,6 +35,7 @@ Lisandro Martínez,40000000.0,480762,Lisandro Martínez,Manchester United,2026-0
 Matheus Cunha,75000000.0,517894,Matheus Cunha,Manchester United,2026-06-03
 Amad Diallo,45000000.0,536835,Amad Diallo,Manchester United,2026-06-03
 Matthijs de Ligt,30000000.0,326031,Matthijs de Ligt,Manchester United,2026-06-03
+Senne Lammens,35000000.0,503883,Senne Lammens,Royal Antwerp FC,2026-06-03
 Patrick Dorgu,35000000.0,926952,Patrick Dorgu,Manchester United,2026-06-03
 Bryan Mbeumo,75000000.0,413039,Bryan Mbeumo,Manchester United,2026-06-03
 Diogo Dalot,30000000.0,357147,Diogo Dalot,Manchester United,2026-06-03
@@ -45,6 +48,7 @@ Youri Tielemans,30000000.0,249565,Youri Tielemans,Aston Villa,2026-06-03
 Boubacar Kamara,40000000.0,394327,Boubacar Kamara,Aston Villa,2026-06-03
 Amadou Onana,45000000.0,485706,Amadou Onana,Aston Villa,2026-06-03
 Ezri Konsa,40000000.0,413403,Ezri Konsa,Aston Villa,2026-06-03
+Emiliano Martínez,12000000.0,111873,Emiliano Martínez,Aston Villa,2026-06-03
 Matty Cash,22000000.0,425334,Matty Cash,Aston Villa,2026-06-03
 John McGinn,13000000.0,193116,John McGinn,Aston Villa,2026-06-03
 Pau Torres,20000000.0,399776,Pau Torres,Aston Villa,2026-06-03
@@ -62,6 +66,7 @@ Cody Gakpo,60000000.0,434675,Cody Gakpo,Liverpool FC,2026-06-03
 Hugo Ekitike,80000000.0,709726,Hugo Ekitiké,Liverpool FC,2026-06-03
 Florian Wirtz,100000000.0,598577,Florian Wirtz,Liverpool FC,2026-06-03
 Curtis Jones,35000000.0,433188,Curtis Jones,Liverpool FC,2026-06-03
+Alisson,15000000.0,105470,Alisson,Liverpool FC,2026-06-03
 Mohamed Salah,22000000.0,148455,Mohamed Salah,Liverpool FC,2026-06-03
 Alexis Mac Allister,70000000.0,534033,Alexis Mac Allister,Liverpool FC,2026-06-03
 Conor Bradley,25000000.0,624258,Conor Bradley,Liverpool FC,2026-06-03
@@ -74,10 +79,12 @@ João Pedro,80000000.0,626724,João Pedro,Chelsea FC,2026-06-03
 Trevoh Chalobah,40000000.0,346314,Trevoh Chalobah,Chelsea FC,2026-06-03
 Pedro Neto,60000000.0,487465,Pedro Neto,Chelsea FC,2026-06-03
 Wesley Fofana,28000000.0,475411,Wesley Fofana,Chelsea FC,2026-06-03
+Robert Sánchez,22000000.0,403151,Robert Sánchez,Chelsea FC,2026-06-03
 Alejandro Garnacho,28000000.0,811779,Alejandro Garnacho,Chelsea FC,2026-06-03
 Andrey Santos,40000000.0,743600,Andrey Santos,Chelsea FC,2026-06-03
 Marc Cucurella,50000000.0,284857,Marc Cucurella,Chelsea FC,2026-06-03
 Malo Gusto,35000000.0,620322,Malo Gusto,Chelsea FC,2026-06-03
+Caoimhín Kelleher,28000000.0,340918,Caoimhín Kelleher,Brentford FC,2026-06-03
 Vitaly Janelt,16000000.0,270171,Vitaly Janelt,Brentford FC,2026-06-03
 Igor Thiago,65000000.0,739443,Igor Thiago,Brentford FC,2026-06-03
 Mikkel Damsgaard,30000000.0,540941,Mikkel Damsgaard,Brentford FC,2026-06-03
@@ -96,6 +103,7 @@ James Garner,45000000.0,505219,James Garner,Everton FC,2026-06-03
 Jack Grealish,20000000.0,203460,Jack Grealish,Everton FC,2026-06-03
 Kiernan Dewsbury-Hall,35000000.0,475188,Kiernan Dewsbury-Hall,Everton FC,2026-06-03
 James Tarkowski,5000000.0,173504,James Tarkowski,Everton FC,2026-06-03
+Jordan Pickford,13000000.0,130164,Jordan Pickford,Everton FC,2026-06-03
 Michael Keane,3000000.0,118534,Michael Keane,Everton FC,2026-06-03
 Iliman Ndiaye,55000000.0,623570,Iliman Ndiaye,Everton FC,2026-06-03
 Idrissa Gueye,500000.0,126665,Idrissa Gueye,Everton FC,2026-06-03
@@ -110,6 +118,7 @@ Alex Iwobi,20000000.0,242631,Alex Iwobi,Fulham FC,2026-06-03
 Joachim Andersen,20000000.0,260827,Joachim Andersen,Fulham FC,2026-06-03
 Kenny Tete,8000000.0,206746,Kenny Tete,Fulham FC,2026-06-03
 Jorge Cuenca,8000000.0,494880,Jorge Cuenca,Fulham FC,2026-06-03
+Bernd Leno,6000000.0,72476,Bernd Leno,Fulham FC,2026-06-03
 Sander Berge,25000000.0,333014,Sander Berge,Fulham FC,2026-06-03
 Antonee Robinson,22000000.0,349701,Antonee Robinson,Fulham FC,2026-06-03
 Kevin,25000000.0,900195,Kevin,FC Shakhtar Donetsk,2026-06-03
@@ -122,6 +131,7 @@ Joshua King,25000000.0,1011131,Josh King,Fulham FC,2026-06-03
 Ryan Sessegnon,22000000.0,392775,Ryan Sessegnon,Fulham FC,2026-06-03
 Jan Paul van Hecke,45000000.0,576314,Jan Paul van Hecke,Brighton & Hove Albion,2026-06-03
 Pascal Groß,2500000.0,82873,Pascal Groß,Borussia Dortmund,2026-06-03
+Bart Verbruggen,40000000.0,565093,Bart Verbruggen,Brighton & Hove Albion,2026-06-03
 Lewis Dunk,3500000.0,148153,Lewis Dunk,Brighton & Hove Albion,2026-06-03
 Yankuba Minteh,45000000.0,1012534,Yankuba Minteh,Brighton & Hove Albion,2026-06-03
 Ferdi Kadioglu,35000000.0,369316,Ferdi Kadıoğlu,Brighton & Hove Albion,2026-06-03
@@ -135,6 +145,7 @@ Georginio Rutter,30000000.0,538977,Georginio Rutter,Brighton & Hove Albion,2026-
 Jack Hinshelwood,28000000.0,867688,Jack Hinshelwood,Brighton & Hove Albion,2026-06-03
 Carlos Baleba,55000000.0,973085,Carlos Baleba,Brighton & Hove Albion,2026-06-03
 Granit Xhaka,8000000.0,111455,Granit Xhaka,Sunderland AFC,2026-06-03
+Robin Roefs,28000000.0,646991,Robin Roefs,Sunderland AFC,2026-06-03
 Nordi Mukiele,16000000.0,348026,Nordi Mukiele,Sunderland AFC,2026-06-03
 Daniel Ballard,20000000.0,503686,Dan Ballard,Sunderland AFC,2026-06-03
 Omar Alderete,13000000.0,353032,Omar Alderete,Sunderland AFC,2026-06-03
@@ -155,6 +166,7 @@ Sven Botman,35000000.0,361093,Sven Botman,Newcastle United,2026-06-03
 Sandro Tonali,80000000.0,397033,Sandro Tonali,Newcastle United,2026-06-03
 Lewis Miley,25000000.0,922769,Lewis Miley,Newcastle United,2026-06-03
 Lewis Hall,40000000.0,670858,Lewis Hall,Newcastle United,2026-06-03
+Nick Pope,5000000.0,192080,Nick Pope,Newcastle United,2026-06-03
 Joelinton,25000000.0,333241,Joelinton,Newcastle United,2026-06-03
 Jacob Murphy,12000000.0,199527,Jacob Murphy,Newcastle United,2026-06-03
 Tino Livramento,45000000.0,503981,Tino Livramento,Newcastle United,2026-06-03
@@ -167,6 +179,7 @@ Dan Burn,4000000.0,134270,Dan Burn,Newcastle United,2026-06-03
 Marcos Senesi,25000000.0,469781,Marcos Senesi,AFC Bournemouth,2026-06-03
 Alex Scott,50000000.0,855256,Alex Scott,AFC Bournemouth,2026-06-03
 James Hill,23000000.0,611793,James Hill,AFC Bournemouth,2026-06-03
+Đorđe Petrović,28000000.0,465555,Djordje Petrovic,AFC Bournemouth,2026-06-03
 Tyler Adams,25000000.0,332705,Tyler Adams,AFC Bournemouth,2026-06-03
 Álex Jiménez,22000000.0,741257,Álex Jiménez,AC Milan,2026-06-03
 Amine Adli,20000000.0,532776,Amine Adli,AFC Bournemouth,2026-06-03
@@ -177,6 +190,7 @@ David Brooks,12000000.0,277033,David Brooks,AFC Bournemouth,2026-06-03
 Evanilson,35000000.0,711337,Evanilson,AFC Bournemouth,2026-06-03
 Bafodé Diakité,25000000.0,463605,Bafodé Diakité,AFC Bournemouth,2026-06-03
 Justin Kluivert,25000000.0,330659,Justin Kluivert,AFC Bournemouth,2026-06-03
+Dean Henderson,28000000.0,258919,Dean Henderson,Crystal Palace,2026-06-03
 Adam Wharton,70000000.0,744149,Adam Wharton,Crystal Palace,2026-06-03
 Chris Richards,28000000.0,578539,Chris Richards,Crystal Palace,2026-06-03
 Daniel Muñoz,22000000.0,493003,Daniel Muñoz,Crystal Palace,2026-06-03
@@ -192,6 +206,7 @@ Brennan Johnson,30000000.0,470607,Brennan Johnson,Tottenham Hotspur,2026-06-03
 Jørgen Strand Larsen,40000000.0,429983,Jørgen Strand Larsen,Wolverhampton Wanderers,2026-06-03
 Ethan Ampadu,30000000.0,392771,Ethan Ampadu,Leeds United,2026-06-03
 Anton Stach,28000000.0,344069,Anton Stach,Leeds United,2026-06-03
+Karl Darlow,200000.0,99397,Karl Darlow,Leeds United,2026-06-03
 Sean Longstaff,15000000.0,346707,Sean Longstaff,Leeds United,2026-06-03
 James Justin,12000000.0,413220,James Justin,Leeds United,2026-06-03
 Jaka Bijol,20000000.0,371851,Jaka Bijol,Leeds United,2026-06-03
@@ -201,6 +216,7 @@ Joe Rodon,18000000.0,297212,Joe Rodon,Leeds United,2026-06-03
 Brenden Aaronson,22000000.0,393323,Brenden Aaronson,Leeds United,2026-06-03
 Ilia Gruev,12000000.0,381753,Ilia Gruev,Leeds United,2026-06-03
 Dominic Calvert-Lewin,22000000.0,306024,Dominic Calvert-Lewin,Leeds United,2026-06-03
+Lucas Perri,10000000.0,352041,Lucas Perri,Leeds United,2026-06-03
 Gabriel Gudmundsson,20000000.0,362108,Gabriel Gudmundsson,Leeds United,2026-06-03
 Jayden Bogle,15000000.0,465717,Jayden Bogle,Leeds United,2026-06-03
 Elliot Anderson,75000000.0,567576,Elliot Anderson,Nottingham Forest,2026-06-03
@@ -214,6 +230,7 @@ Ola Aina,18000000.0,236490,Ola Aina,Nottingham Forest,2026-06-03
 Nikola Milenković,28000000.0,413507,Nikola Milenković,Nottingham Forest,2026-06-03
 Morgan Gibbs-White,70000000.0,429014,Morgan Gibbs-White,Nottingham Forest,2026-06-03
 Omari Hutchinson,30000000.0,741238,Omari Hutchinson,Nottingham Forest,2026-06-03
+Matz Sels,3500000.0,127202,Matz Sels,Nottingham Forest,2026-06-03
 Dan Ndoye,32000000.0,365108,Dan Ndoye,Nottingham Forest,2026-06-03
 Nicolò Savona,15000000.0,708072,Nicolò Savona,Nottingham Forest,2026-06-03
 Igor Jesus,25000000.0,432164,Igor Jesus,Nottingham Forest,2026-06-03
@@ -223,6 +240,7 @@ Richarlison,25000000.0,378710,Richarlison,Tottenham Hotspur,2026-06-03
 Mohammed Kudus,50000000.0,543499,Mohammed Kudus,Tottenham Hotspur,2026-06-03
 Kevin Danso,20000000.0,263236,Kevin Danso,Tottenham Hotspur,2026-06-03
 Xavi Simons,40000000.0,566931,Xavi Simons,RB Leipzig,2026-06-03
+Guglielmo Vicario,18000000.0,286047,Guglielmo Vicario,Tottenham Hotspur,2026-06-03
 Pedro Porro,35000000.0,553875,Pedro Porro,Tottenham Hotspur,2026-06-03
 Pape Matar Sarr,30000000.0,568693,Pape Matar Sarr,Tottenham Hotspur,2026-06-03
 Mathys Tel,22000000.0,801734,Mathys Tel,Tottenham Hotspur,2026-06-03
@@ -237,7 +255,9 @@ Crysencio Summerville,35000000.0,474701,Crysencio Summerville,West Ham United,20
 Jarrod Bowen,30000000.0,314875,Jarrod Bowen,West Ham United,2026-06-03
 Konstantinos Mavropanos,18000000.0,415912,Konstantinos Mavropanos,West Ham United,2026-06-03
 Lucas Paquetá,32000000.0,444523,Lucas Paquetá,West Ham United,2026-05-26
+Mads Hermansen,15000000.0,400536,Mads Hermansen,West Ham United,2026-06-03
 Freddie Potts,10000000.0,698164,Freddie Potts,West Ham United,2026-06-03
+Alphonse Areola,4000000.0,120629,Alphonse Areola,West Ham United,2026-06-03
 Soungoutou Magassa,17000000.0,745181,Soungoutou Magassa,West Ham United,2026-06-03
 El Hadji Malick Diouf,28000000.0,1111589,El Hadji Malick Diouf,West Ham United,2026-06-03
 Tomáš Souček,10000000.0,283628,Tomáš Souček,West Ham United,2026-06-03
@@ -246,6 +266,7 @@ Kyle Walker-Peters,12000000.0,341051,Kyle Walker-Peters,West Ham United,2026-06-
 Aaron Wan-Bissaka,15000000.0,477758,Aaron Wan-Bissaka,West Ham United,2026-06-03
 Jean-Clair Todibo,22000000.0,605184,Jean-Clair Todibo,West Ham United,2026-06-03
 Max Kilman,13000000.0,525247,Maximilian Kilman,West Ham United,2026-06-03
+Martin Dúbravka,500000.0,74960,Martin Dúbravka,Burnley FC,2026-06-03
 Bashir Humphreys,12000000.0,612517,Bashir Humphreys,Burnley FC,2026-06-03
 Josh Cullen,4000000.0,242606,Josh Cullen,Burnley FC,2026-06-03
 Jaidon Anthony,20000000.0,684210,Jaidon Anthony,Burnley FC,2026-06-03
@@ -262,8 +283,10 @@ Jacob Bruun Larsen,4000000.0,293281,Jacob Bruun Larsen,Burnley FC,2026-06-03
 Lyle Foster,8000000.0,467623,Lyle Foster,Burnley FC,2026-06-03
 Quilindschy Hartman,16000000.0,514285,Quilindschy Hartman,Burnley FC,2026-06-03
 Josh Laurent,1500000.0,314241,Josh Laurent,Burnley FC,2026-06-03
+Sam Johnstone,2000000.0,110864,Sam Johnstone,Wolverhampton Wanderers,2026-06-03
 André,25000000.0,800176,André,Wolverhampton Wanderers,2026-06-03
 Emmanuel Agbadou,16000000.0,683895,Emmanuel Agbadou,Beşiktaş Jimnastik Kulübü,2026-05-21
+José Sá,3500000.0,249994,José Sá,Wolverhampton Wanderers,2026-06-03
 Mateus Mane,20000000.0,1230661,Mateus Mané,Wolverhampton Wanderers,2026-06-03
 João Gomes,40000000.0,735570,João Gomes,Wolverhampton Wanderers,2026-06-03
 Santiago Bueno,10000000.0,438001,Santiago Bueno,Wolverhampton Wanderers,2026-06-03

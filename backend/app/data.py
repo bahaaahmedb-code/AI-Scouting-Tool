@@ -109,18 +109,23 @@ def merge_sources(kg: pd.DataFrame, fb: pd.DataFrame) -> tuple[pd.DataFrame, lis
 
 # ---------------------------------------------------------------- filtering (cell 9)
 def filter_sample(df: pd.DataFrame, min_minutes: int) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """Returns (sample, excluded, counts). `excluded` is NEW: every dropped Kaggle player with the reason."""
+    """Returns (sample, excluded, counts). Includes both outfield players and goalkeepers with >= min_minutes."""
     reason = pd.Series(None, index=df.index, dtype=object)
-    reason[df["position"] == "G"] = "goalkeeper"
     reason[reason.isna() & (df["minutesPlayed"] < min_minutes)] = f"fewer than {min_minutes} minutes"
     reason[reason.isna() & df["age"].isna()] = "no match between the two sources (age unknown)"
 
     n0 = len(df)
     n1 = int((df["position"] != "G").sum())
-    n2 = int(((df["position"] != "G") & (df["minutesPlayed"] >= min_minutes)).sum())
+    n2 = int((df["minutesPlayed"] >= min_minutes).sum())
     sample = df[reason.isna()].reset_index(drop=True)
     excluded = df[reason.notna()].assign(exclusion_reason=reason[reason.notna()]).reset_index(drop=True)
-    counts = {"all": n0, "outfield": n1, "min_minutes": n2, "with_age": len(sample)}
+    counts = {
+        "all": n0,
+        "outfield": int((sample["position"] != "G").sum()),
+        "goalkeepers": int((sample["position"] == "G").sum()),
+        "min_minutes": n2,
+        "with_age": len(sample),
+    }
     return sample, excluded, counts
 
 

@@ -4,8 +4,8 @@ import { getPlayers, getMeta } from '../api'
 import { fmtValue, debounce, posClass } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer } from '../components/UI'
 
-const POSITIONS = ['', 'D', 'M', 'F']
-const POS_LABELS = { '': 'All positions', D: 'Defenders', M: 'Midfielders', F: 'Attackers' }
+const POSITIONS = ['', 'G', 'D', 'M', 'F']
+const POS_LABELS = { '': 'All positions', G: 'Goalkeepers', D: 'Defenders', M: 'Midfielders', F: 'Attackers' }
 
 export default function Players() {
   const [rows, setRows] = useState([])
@@ -72,7 +72,7 @@ export default function Players() {
       <div className="container">
         <div className="section-head">
           <h1>Player Database</h1>
-          <p className="text-muted">Search, filter, and sort all EPL outfield players in the dataset.</p>
+          <p className="text-muted">Search, filter, and sort all EPL players and goalkeepers in the dataset.</p>
         </div>
 
         {/* ── Filters ─────────────────────────────────────────── */}

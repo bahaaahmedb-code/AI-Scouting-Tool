@@ -84,13 +84,14 @@ export default function PlayerProfile() {
   })
 
   // Derive strengths/weaknesses from percentile data in stats
+  const negKeys = new Set(['yellow_p90', 'red_p90', 'dispossessed_p90', 'goals_conceded_p90'])
   const derivedStrengths = statList
-    .filter(f => f.pct_in_position != null && f.pct_in_position >= 75)
+    .filter(f => f.pct_in_position != null && f.pct_in_position >= 75 && !negKeys.has(f.key))
     .sort((a, b) => b.pct_in_position - a.pct_in_position)
     .slice(0, 6)
     .map(f => f.label ?? f.key)
   const derivedWeaknesses = statList
-    .filter(f => f.pct_in_position != null && f.pct_in_position <= 25)
+    .filter(f => f.pct_in_position != null && f.pct_in_position <= 25 && !negKeys.has(f.key))
     .sort((a, b) => a.pct_in_position - b.pct_in_position)
     .slice(0, 4)
     .map(f => f.label ?? f.key)
@@ -205,14 +206,18 @@ export default function PlayerProfile() {
                 <h3 className="mb-16">{group}</h3>
                 <div className="grid-4" style={{ gap: 12 }}>
                   {feats.map(f => (
-                    <div key={f.key} style={{ background: 'var(--c-surface)', borderRadius: 8, padding: '10px 14px' }}>
-                      <div className="label mb-4">{f.label}</div>
-                      <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--c-text)' }}>
-                        {fmtNum(f.value)}
+                    <div key={f.key} style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--c-border)' }}>
+                      <div className="label mb-4" style={{ lineHeight: 1.35 }}>{f.label}</div>
+                      <div style={{ fontWeight: 700, fontSize: '1.15rem', color: 'var(--c-text)', marginTop: 4 }}>
+                        {f.key === 'start_share'
+                          ? `${((f.value ?? 0) * 100).toFixed(0)}%`
+                          : ['pass_accuracy', 'save_pct', 'clean_sheet_pct'].includes(f.key)
+                            ? `${fmtNum(f.value, 1)}%`
+                            : fmtNum(f.value)}
                       </div>
                       {f.pct_in_position != null && (
-                        <div style={{ fontSize: '0.72rem', color: 'var(--c-muted)', marginTop: 4 }}>
-                          Percentile: {f.pct_in_position.toFixed(0)}% in position
+                        <div style={{ fontSize: '0.74rem', color: 'var(--c-muted)', marginTop: 6 }}>
+                          Percentile: <strong style={{ color: 'var(--c-text)' }}>{f.pct_in_position.toFixed(0)}%</strong> in position
                         </div>
                       )}
                     </div>

@@ -33,7 +33,7 @@ settings = load_settings()
 limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit])
 STATE: dict = {}
 
-Position = Literal["D", "M", "F"]
+Position = Literal["G", "D", "M", "F"]
 
 
 def _ensure_loaded() -> None:
@@ -142,7 +142,7 @@ def explain_dependence(request: Request, feature: str):
 
 class ScoutBody(BaseModel):
     target: int = Field(ge=0)
-    position_mode: Literal["same", "any", "D", "M", "F"] = "same"
+    position_mode: Literal["same", "any", "G", "D", "M", "F"] = "same"
     max_pct: float | None = Field(60, ge=5, le=500)
     max_age: int | None = Field(None, ge=16, le=45)
     min_age: int | None = Field(None, ge=16, le=45)
@@ -152,14 +152,14 @@ class ScoutBody(BaseModel):
 @app.get("/api/scout")
 @limiter.limit(settings.rate_limit)
 def scout(request: Request, target: int = Query(..., ge=0),
-          position_mode: Literal["same", "any", "D", "M", "F"] = "same",
+          position_mode: Literal["same", "any", "G", "D", "M", "F"] = "same",
           max_pct: float = Query(60, ge=5, le=500),
           max_age: int | None = Query(None, ge=16, le=45),
           min_age: int | None = Query(None, ge=16, le=45),
           n: int = Query(10, ge=1, le=50)):
     _player(target)
     q = ScoutQuery(target=target, same_position=position_mode == "same",
-                   position=position_mode if position_mode in ("D", "M", "F") else None,
+                   position=position_mode if position_mode in ("G", "D", "M", "F") else None,
                    max_pct=max_pct, max_age=max_age, min_age=min_age, n=n)
     return S().scout(q)
 

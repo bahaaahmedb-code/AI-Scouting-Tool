@@ -8,7 +8,7 @@ import {
 import { postChat, getShap, getRadar, getDependence, getGeminiStatus, postGeminiKey } from '../api'
 import WaterfallChart from '../components/WaterfallChart'
 import RadarChart from '../components/RadarChart'
-import { Disclaimer, Spinner } from '../components/UI'
+import { Disclaimer, Spinner, PosChip } from '../components/UI'
 import { fmtNum } from '../utils'
 import {
   IconChat, IconClipboard, IconChart, IconSparkle, IconKey, IconAlert, IconInfo,
@@ -40,8 +40,8 @@ const INTENT_LABELS = {
   clarify: 'Clarification',
 }
 
-const POS_COLOR = { D: '#3b82f6', M: '#10b981', F: '#ef4444' }
-const POS_NAME = { D: 'Defenders', M: 'Midfielders', F: 'Attackers' }
+const POS_COLOR = { G: '#facc15', D: '#38bdf8', M: '#a855f7', F: '#f43f5e' }
+const POS_NAME = { G: 'Goalkeepers', D: 'Defenders', M: 'Midfielders', F: 'Attackers' }
 const CHART_TIP = {
   background: 'var(--c-card2)',
   border: '1px solid var(--c-border2)',
@@ -185,6 +185,7 @@ function ChatTable({ table }) {
                   {cols.map((c, ci) => {
                     const cell = isArr ? row[ci] : row?.[c.key]
                     const isPlayerCol = pid != null && (c.key === 'name' || c.key === 'player')
+                    const isPosCol = (c.key === 'pos' || c.key === 'position') && ['G', 'GK', 'D', 'M', 'F'].includes(String(cell))
                     return (
                       <td key={c.key || ci} style={{ padding: '9px 12px', fontSize: '0.83rem' }}>
                         {isPlayerCol ? (
@@ -194,6 +195,8 @@ function ChatTable({ table }) {
                           >
                             {cell ?? '—'}
                           </Link>
+                        ) : isPosCol ? (
+                          <PosChip pos={String(cell)} />
                         ) : (
                           cell ?? '—'
                         )}
@@ -348,12 +351,12 @@ function ChatChart({ chart }) {
                       iconSize={8}
                       wrapperStyle={{ bottom: 0, fontSize: '0.74rem', paddingTop: 6 }}
                     />
-                    {['D', 'M', 'F'].map(k => (
+                    {['G', 'D', 'M', 'F'].filter(k => (data.points ?? []).some(p => p.position === k)).map(k => (
                       <Scatter
                         key={k}
                         name={POS_NAME[k]}
                         fill={POS_COLOR[k]}
-                        fillOpacity={0.7}
+                        fillOpacity={0.78}
                         data={(data.points ?? []).filter(p => p.position === k)}
                       />
                     ))}

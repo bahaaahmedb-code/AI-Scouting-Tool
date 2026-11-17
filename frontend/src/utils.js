@@ -35,6 +35,7 @@ export function trunc(s, n = 22) {
 
 /** Position colour class */
 export function posClass(p) {
+  if (p === 'G' || p === 'GK') return 'pos-G'
   if (p === 'D') return 'pos-D'
   if (p === 'M') return 'pos-M'
   if (p === 'F') return 'pos-F'
