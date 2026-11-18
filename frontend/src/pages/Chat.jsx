@@ -5,11 +5,11 @@ import {
   ResponsiveContainer, ScatterChart, Scatter, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
-import { postChat, getShap, getRadar, getDependence, getGeminiStatus, postGeminiKey } from '../api'
+import { postChat, getShap, getRadar, getDependence, getProjection, getGeminiStatus, postGeminiKey } from '../api'
 import WaterfallChart from '../components/WaterfallChart'
 import RadarChart from '../components/RadarChart'
 import { Disclaimer, Spinner, PosChip } from '../components/UI'
-import { fmtNum } from '../utils'
+import { fmtNum, fmtValue } from '../utils'
 import {
   IconChat, IconClipboard, IconChart, IconSparkle, IconKey, IconAlert, IconInfo,
 } from '../components/Icons'
@@ -246,6 +246,9 @@ function ChatChart({ chart }) {
         } else if (chart.type === 'dependence' && chart.feature) {
           const d = await getDependence(chart.feature)
           if (active) setData(d)
+        } else if (chart.type === 'projection' && chart.ids?.length) {
+          const d = await getProjection(chart.ids[0])
+          if (active) setData(d)
         }
       } catch {
         if (active) setData(null)
@@ -262,6 +265,7 @@ function ChatChart({ chart }) {
   const chartTitle =
     chart.type === 'waterfall' ? 'SHAP Waterfall Breakdown'
     : chart.type === 'radar' ? 'Position Percentile Radar'
+    : chart.type === 'projection' ? 'Multi-Season Performance & Valuation Trajectory (2022–2029)'
     : `SHAP Dependence${data?.label ? `: ${data.label}` : ''}`
 
   return (
@@ -297,6 +301,103 @@ function ChatChart({ chart }) {
           {!loading && data && chart.type === 'radar' && (
             <RadarChart data={data} />
           )}
+          {!loading && data && chart.type === 'projection' && Array.isArray(data.timeline) && data.timeline.length > 0 && (() => {
+            const timeline = data.timeline
+            const position_name = data.position_name || 'Player'
+            const W = 860, H = 270, padL = 92, padR = 84, padT = 44, padB = 54
+            const innerW = W - padL - padR, innerH = H - padT - padB
+            const nPts = timeline.length
+            const xAt = (idx) => padL + (nPts > 1 ? (idx / (nPts - 1)) * innerW : innerW / 2)
+            const roleVals = timeline.map(t => Number(t.role_index || 50))
+            const minRole = Math.max(10, Math.floor((Math.min(...roleVals) - 10) / 5) * 5)
+            const maxRole = Math.min(100, Math.ceil((Math.max(...roleVals) + 8) / 5) * 5)
+            const yRole = (v) => padT + innerH - ((v - minRole) / Math.max(1, maxRole - minRole)) * innerH
+            const curIdx = timeline.findIndex(t => t.type === 'current')
+            const pastPts = timeline.slice(0, curIdx + 1)
+            const futPts = curIdx >= 0 ? timeline.slice(curIdx) : []
+            const polyPoints = (arr, offset = 0) =>
+              arr.map((t, k) => `${xAt(offset + k).toFixed(1)},${yRole(t.role_index).toFixed(1)}`).join(' ')
+            return (
+              <div>
+                <div className="flex justify-between items-start wrap gap-12" style={{ marginBottom: 16 }}>
+                  <p className="text-muted" style={{ fontSize: '0.8rem', margin: 0, flex: '1 1 360px', lineHeight: 1.5 }}>
+                    Solid line = verified historical Opta/FBref seasons · Dashed line = projected trajectory based on last 3 seasons + Premier League {position_name.toLowerCase()} aging curve
+                  </p>
+                  <div className="flex gap-10 wrap" style={{ fontSize: '0.76rem' }}>
+                    <span className="flex items-center gap-6" style={{
+                      padding: '4px 10px', borderRadius: 999,
+                      background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.28)',
+                      color: 'var(--c-text)', fontWeight: 600,
+                    }}>
+                      <span style={{ width: 14, height: 3, borderRadius: 2, background: '#38bdf8', display: 'inline-block' }} />
+                      <span>Historical / Current</span>
+                    </span>
+                    <span className="flex items-center gap-6" style={{
+                      padding: '4px 10px', borderRadius: 999,
+                      background: 'rgba(200, 245, 66, 0.08)', border: '1px solid rgba(200, 245, 66, 0.28)',
+                      color: 'var(--c-text)', fontWeight: 600,
+                    }}>
+                      <span style={{ width: 14, height: 0, borderBottom: '3px dashed #c8f542', display: 'inline-block' }} />
+                      <span>Projected (Age +1 to +3)</span>
+                    </span>
+                  </div>
+                </div>
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 600, height: 'auto', display: 'block' }}>
+                    {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+                      const val = minRole + t * (maxRole - minRole)
+                      const y = yRole(val)
+                      return (
+                        <g key={i}>
+                          <line x1={42} y1={y} x2={W - 24} y2={y} stroke="rgba(255,255,255,0.07)" strokeDasharray="3,3" />
+                          <text x={32} y={y + 4} textAnchor="end" fill="#8fa696" fontSize="10.5" fontFamily="monospace">
+                            {Math.round(val)}
+                          </text>
+                        </g>
+                      )
+                    })}
+                    {curIdx >= 0 && (
+                      <line x1={xAt(curIdx)} y1={padT - 14} x2={xAt(curIdx)} y2={H - padB}
+                        stroke="rgba(200, 245, 66, 0.35)" strokeWidth="1.5" strokeDasharray="4,4" />
+                    )}
+                    {pastPts.length > 1 && (
+                      <polyline fill="none" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={polyPoints(pastPts, 0)} />
+                    )}
+                    {futPts.length > 1 && (
+                      <polyline fill="none" stroke="#c8f542" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6,5" points={polyPoints(futPts, curIdx)} />
+                    )}
+                    {timeline.map((pt, idx) => {
+                      const cx = xAt(idx)
+                      const cy = yRole(pt.role_index)
+                      const isProj = pt.type === 'projected'
+                      const isCur = pt.type === 'current'
+                      const dotColor = isCur ? '#ffffff' : isProj ? '#c8f542' : '#38bdf8'
+                      const labelText = `${pt.role_index?.toFixed(1)} (${fmtValue(pt.estimated_value_eur)})`
+                      const pillW = Math.max(96, labelText.length * 6.4 + 14)
+                      const labelY = cy - 18
+                      return (
+                        <g key={pt.season}>
+                          <circle cx={cx} cy={cy} r={isCur ? 6.5 : 5} fill={dotColor} stroke="#07100c" strokeWidth="2" />
+                          <rect x={cx - pillW / 2} y={labelY - 12} width={pillW} height={18} rx="5"
+                            fill="#0b1711" fillOpacity="0.92"
+                            stroke={isProj ? 'rgba(200, 245, 66, 0.32)' : 'rgba(56, 189, 248, 0.32)'} strokeWidth="1" />
+                          <text x={cx} y={labelY} textAnchor="middle" fill={isProj ? '#c8f542' : '#eef5f0'} fontSize="10.5" fontWeight="700" fontFamily="monospace">
+                            {labelText}
+                          </text>
+                          <text x={cx} y={H - padB + 20} textAnchor="middle" fill={isCur ? '#c8f542' : '#eef5f0'} fontSize="11" fontWeight={isCur ? '800' : '600'}>
+                            {pt.season}
+                          </text>
+                          <text x={cx} y={H - padB + 36} textAnchor="middle" fill="#8fa696" fontSize="10">
+                            Age {pt.age} {isProj ? '(Proj)' : isCur ? '(Now)' : ''}
+                          </text>
+                        </g>
+                      )
+                    })}
+                  </svg>
+                </div>
+              </div>
+            )
+          })()}
           {!loading && data && chart.type === 'dependence' && (
             data.categorical ? (
               <div style={{ height: 240 }}>

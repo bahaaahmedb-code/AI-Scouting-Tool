@@ -298,7 +298,8 @@ def chat(request: Request, body: ChatBody):
     llm_model_used = None
     use_gemini = settings.llm_rephrase and (llm.has_gemini_key() or bool(os.environ.get("ANTHROPIC_API_KEY")))
 
-    if use_gemini and not reply["understood"] and llm.has_gemini_key():
+    needs_rewrite = (not reply["understood"]) or (reply.get("subintent") == "fallback_valuation")
+    if use_gemini and needs_rewrite and llm.has_gemini_key():
         ctx = reply.get("context") or {}
         ctx_summary = ""
         if ctx.get("target"):
@@ -308,7 +309,7 @@ def chat(request: Request, body: ChatBody):
         rewritten = llm.rewrite_query(body.message, ctx_summary, model=settings.gemini_model)
         if rewritten and rewritten.lower() != body.message.strip().lower():
             retry = STATE["chat"].answer(rewritten, reply["session_id"])
-            if retry["understood"]:
+            if retry["understood"] and (not reply["understood"] or retry["intent"] != reply["intent"]):
                 reply = retry
                 reply["rewritten_query"] = rewritten
 
@@ -327,8 +328,8 @@ def chat(request: Request, body: ChatBody):
             llm_model_used = g_model
     elif use_gemini and reply["understood"] and reply.get("subintent") not in ("reset", "export"):
         from .chatbot.facts import Facts, check_numbers
-        F = Facts()
-        F.allow(reply["text"], reply.get("details") or "")
+        F = Facts(STATE["chat"].always | {"2", "3", "4", "10", "20", "100", "2024", "2025", "2026", "2027", "2028", "2029", "24", "25", "26", "27", "28", "29"})
+        F.allow(body.message, reply["text"], reply.get("details") or "")
         if reply.get("table"):
             for r_row in reply["table"].get("rows", []):
                 for k, v in r_row.items():

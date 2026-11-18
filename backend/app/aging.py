@@ -525,16 +525,25 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
             sim_row["age"] = float(target_age)
             sim_row["age_sq"] = float(target_age ** 2)
 
+            fut_perf = _score_with_weights(sim_row, subrole_weights, pos_sub, full_season_minutes=2000.0)
+            perf_ratio = fut_perf / max(perf_now, 25.0)
             X_fut = sim_row[active_num_cols + active_cat_cols].to_frame().T
             raw_fut_val = float(np.exp(active_pipe.predict(X_fut)[0]))
             val_ratio = raw_fut_val / max(anchor_val_now, 1e5)
-            # Apply a gentle post-peak market discount for veteran goalkeepers/outfielders past their peak window
-            if target_age > peak_hi:
+            if target_age <= peak_lo and fut_perf >= perf_now - 0.5:
+                # Developing / entering prime window: value appreciates or holds with performance
+                min_growth = 1.0 + max(0.0, (fut_perf - perf_now) * 0.012) + 0.015 * step
+                val_ratio = max(val_ratio, min(1.25, min_growth))
+            elif target_age <= peak_hi - 1 and fut_perf >= perf_now - 1.0:
+                # Core prime window: prevent artificial tree-step drops while output is stable/rising
+                min_hold = (perf_ratio ** 0.85) * (0.985 ** step)
+                val_ratio = max(val_ratio, min_hold)
+            elif target_age > peak_hi:
+                # Post-peak market discount for veterans past their positional prime window
                 age_disc = (0.92 ** max(0, target_age - peak_hi))
                 val_ratio = min(val_ratio, age_disc)
             fut_val = est_now * val_ratio
 
-            fut_perf = _score_with_weights(sim_row, subrole_weights, pos_sub, full_season_minutes=2000.0)
             fut_year = 2026 + step
             disp_mins = int(round(min(3420.0, float(sim_row["minutes"]) * (38.0 / 31.0))))
 

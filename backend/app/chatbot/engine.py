@@ -263,6 +263,7 @@ class ChatEngine:
 
         if len(players) == 1:
             i = players[0]
+            self._set_players(s, players)
             if nlu.PROJECTION_RE.search(ql):
                 r = self.player_projection(i, F)
                 if resolved_note:
@@ -274,7 +275,6 @@ class ChatEngine:
                 if resolved_note:
                     r.context_note = resolved_note
                 return r
-            self._set_players(s, players)
             if nlu.STRENGTH_RE.search(ql):
                 r = self.player_strengths(i, F)
                 if resolved_note:
@@ -300,6 +300,8 @@ class ChatEngine:
                     r.context_note = resolved_note
                 return r
             r = self.valuation(i, F, q=q)
+            if len(q.split()) >= 4 and not nlu.VALUE_RE.search(ql):
+                r.subintent = "fallback_valuation"
             if resolved_note:
                 r.context_note = resolved_note
             return r
@@ -704,15 +706,14 @@ class ChatEngine:
             cs = float(self.d.at[i, "cleanSheet"])
             sv_pct = float(self.d.at[i, "save_pct"])
             gp_p90 = float(self.d.at[i, "goals_prevented_p90"])
-            out_line = f"- **Season output:** **{F.int(cs)}** clean sheets, **{F.fmt_feature('save_pct', sv_pct)}** save rate, **{F.num(gp_p90, 2)}** goals prevented /90 across **{F.int(mins)}** minutes.\n"
+            out_sent = f"Across **{F.int(mins)}** league minutes this season, he has kept **{F.int(cs)}** clean sheets with a **{F.fmt_feature('save_pct', sv_pct)}** save rate and **{F.num(gp_p90, 2)}** goals prevented per 90."
         else:
-            out_line = f"- **Season output:** **{F.int(goals)}** goals, **{F.int(assists)}** assists across **{F.int(mins)}** minutes.\n"
-        r.text = (f"{self.who(i, F)} · {nat_label}: the model estimates **{F.eur(est)}** "
-                  f"(listed: {F.eur(listed)}, **{F.pct(mkt_gap)}** vs listed).{self.syn()}\n\n"
-                  f"{out_line}"
-                  f"- **Confidence band:** typically within {F.eur(lo)} to {F.eur(hi)} (CV MAE {F.eur(err['cv_mae_eur'])}, RMSE {F.eur(err['cv_rmse_eur'])}).\n"
-                  f"- **Biggest SHAP drivers** (what the model uses, not causes): {drv}.\n"
-                  f"- **Compared with other {POS_PLURAL[pos]}:** {F.pct(diff)} vs the {POS_NAME[pos].lower()} average of {F.eur(avg)}.")
+            out_sent = f"Across **{F.int(mins)}** league minutes this season, he has recorded **{F.int(goals)}** goals and **{F.int(assists)}** assists."
+        r.text = (
+            f"{self.who(i, F)} ({nat_label}) is valued by the model at **{F.eur(est)}**, compared with a listed Transfermarkt value of **{F.eur(listed)}** (**{F.pct(mkt_gap)}** vs listed), "
+            f"with a typical confidence range between {F.eur(lo)} and {F.eur(hi)}. {out_sent}\n\n"
+            f"The biggest SHAP factors moving his valuation are {drv}, placing him **{F.pct(diff)}** relative to the Premier League {POS_NAME[pos].lower()} average of {F.eur(avg)}."
+        )
         r.details = self._player_breakdown(i, F)
         r.suggestions = [f"What are {self.name(i)}'s strengths and weaknesses?", f"Find cheaper alternatives to {self.name(i)}"]
         r.actions = [self.profile_link(i)]
@@ -810,14 +811,14 @@ class ChatEngine:
         )[:4]
         out = [f"**Strengths & Weaknesses for {self.who(i, F)}** (compared against {F.int(prof['n_in_position'])} {pos_lbl}):", ""]
         if strengths:
-            out.append(f"**💪 Key Strengths (≥{F.int(75)}th percentile):**")
+            out.append(f"**Key Strengths (≥{F.int(75)}th percentile):**")
             for s_it in strengths:
                 out.append(f"- **{s_it['label']}**: {F.fmt_feature(s_it['key'], s_it['value'])} (**{F.int(s_it['pct_in_position'])}th** percentile)")
             out.append("")
         else:
             out += [f"- No individual metric sits at or above the {F.int(75)}th percentile among {pos_lbl}.", ""]
         if weaknesses:
-            out.append(f"**⚠️ Areas to Improve (≤{F.int(25)}th percentile):**")
+            out.append(f"**Areas to Improve (≤{F.int(25)}th percentile):**")
             for w_it in weaknesses:
                 out.append(f"- **{w_it['label']}**: {F.fmt_feature(w_it['key'], w_it['value'])} (**{F.int(w_it['pct_in_position'])}th** percentile)")
             out.append("")
@@ -1811,19 +1812,13 @@ class ChatEngine:
             for h in proj["history"]
         )
         r.text = (
-            f"### Multi-Season Aging & Contract Advisory: {self.who(i, F)}\n\n"
-            f"- **Trajectory Status:** **{proj['trajectory_label']}** *(Confidence: {proj['confidence']})*\n"
-            f"- **Current 2025-26 Baseline (Age {F.int(proj['current_age'])}):** Role Performance Index **{F.num(proj['current_role_index'], 1)}/100** | Fair Value **{F.eur(proj['current_value_eur'])}**\n"
-            f"- **Historical Track Record:** {hist_str if hist_str else '2025-26 Premier League season only'}\n\n"
-            f"#### 3-Year Forward Projection\n"
-            f"- **{y1['season']} (Age {F.int(y1['age'])}):** Role Index **{F.num(y1['role_index'], 1)}/100** ({F.pct(y1['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y1['estimated_value_eur'])}** ({F.pct(y1['value_change_pct'])})\n"
-            f"- **{y2['season']} (Age {F.int(y2['age'])}):** Role Index **{F.num(y2['role_index'], 1)}/100** ({F.pct(y2['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y2['estimated_value_eur'])}** ({F.pct(y2['value_change_pct'])})\n"
-            f"- **{y3['season']} (Age {F.int(y3['age'])}):** Role Index **{F.num(y3['role_index'], 1)}/100** ({F.pct(y3['perf_change_pts'], signed=True, nd=1)} pts) → Est. Value **{F.eur(y3['estimated_value_eur'])}** ({F.pct(y3['value_change_pct'])})\n\n"
-            f"#### Contract Recommendation: **{c['recommended_years']}** ({c['verdict']})\n"
-            f"- **Structure:** {c['contract_structure']}\n"
-            f"- **Risk Level:** {c['risk_level']}\n"
-            f"- **Scouting Rationale:** {F.raw(c['rationale'])}"
+            f"{self.who(i, F)} is currently in the **{proj['trajectory_label']}** phase (Role Performance Index **{F.num(proj['current_role_index'], 1)}/100**, fair value **{F.eur(proj['current_value_eur'])}**). "
+            f"Over the next three seasons, the aging model projects his Role Index and valuation at **{F.num(y1['role_index'], 1)}/100** (**{F.eur(y1['estimated_value_eur'])}**, {F.pct(y1['value_change_pct'])}) in **{y1['season']}** (age {F.int(y1['age'])}), "
+            f"**{F.num(y2['role_index'], 1)}/100** (**{F.eur(y2['estimated_value_eur'])}**, {F.pct(y2['value_change_pct'])}) in **{y2['season']}** (age {F.int(y2['age'])}), and "
+            f"**{F.num(y3['role_index'], 1)}/100** (**{F.eur(y3['estimated_value_eur'])}**, {F.pct(y3['value_change_pct'])}) in **{y3['season']}** (age {F.int(y3['age'])}).\n\n"
+            f"Based on this trajectory, the recommended contract is **{c['recommended_years']}** (**{c['verdict']}**, {c['risk_level']} risk) structured as a {c['contract_structure']}. {F.raw(c['rationale'])}"
         )
+        r.chart = {"type": "projection", "ids": [int(i)]}
         r.actions = [self.profile_link(i)]
         r.suggestions = [
             f"Find younger alternatives to {self.name(i)}",

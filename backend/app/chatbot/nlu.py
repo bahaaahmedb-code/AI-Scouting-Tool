@@ -479,7 +479,9 @@ OUT_OF_SCOPE = [
 ]
 
 PROJECTION_RE = re.compile(
-    r"\bcontract\b|\bhow long should\b|\bextension\b|\brenew|\byear deal\b|\byears deal\b|"
+    r"\bcontracts?\b|\bcontrats?\b|\bcontrcats?\b|\bhow long should\b|\bhow many years\b|\bextension\b|\brenew|\byears? deal\b|"
+    r"\b(?:recommend(?:ed)?|recommand(?:ed)?)\s+(?:deal|contract|contrat|length|years?|offer)\b|"
+    r"\bwhat (?:deal|offer|contract|contrat)\b|\bshould (?:we|i|they|[a-z]+) offer\b|"
     r"\bdecline\b|\bincline\b|\baging\b|\bageing\b|\btrajectory\b|\bprojection\b|\bproject(?:ed)?\b|"
     r"\bfuture\b|\bnext \d+ (?:years?|seasons?)\b|\bin \d+ years?\b|\bwhen he is \d{2}\b|\bat age \d{2}\b|"
     r"\bwill he still perform\b|\bstill perform\b|\bpast his peak\b|\bpeak window\b|\bresale value\b"
@@ -521,7 +523,8 @@ ABOUT_RE = re.compile(r"\blimitations?\b|\bcaveats?\b|\bweaknesses of the (?:mod
                       r"\babout this (?:tool|app|project|site|thesis|prototype)\b|\bwhat does this (?:tool|app|site|prototype) do\b|"
                       r"\bname[- ]matching\b|\bfuzzy matching\b|\bevaluation console\b|\bsus score\b|\bsynthetic (?:data|target)\b")
 CLUB_AGG_RE = re.compile(r"\bsquad values?\b|\bclub values?\b|\bteam values?\b|\bmost valuable (?:clubs?|teams?|squads?)\b|"
-                         r"\brank (?:the )?(?:clubs?|teams?)\b|\bwhich (?:club|team) has the (?:highest|most|lowest|best|strongest)\b|"
+                         r"\brank (?:the )?(?:clubs?|teams?)\b|\bwhich (?:club|team|squad) (?:has|is) the (?:highest|most|lowest|best|strongest)\b|"
+                         r"\b(?:team|club|squad) with the (?:best|strongest|highest|most valuable)\b|\b(?:best|strongest) (?:team|club|squad)\b|"
                          r"\bclubs? by team strength\b|\bstrongest (?:clubs?|teams?)\b|\blist (?:all )?(?:the )?clubs\b|\bhow many clubs\b")
 POS_AGG_RE = re.compile(r"\baverage value by position\b|\bvalue by position\b|\bcompare (?:the )?positions\b|"
                         r"\bposition averages?\b|\bwhich position is (?:worth|valued) (?:the )?(?:most|highest|least)\b")

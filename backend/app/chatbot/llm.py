@@ -25,16 +25,16 @@ FALLBACK_GEMINI_MODELS = ("gemini-3.1-flash-lite", "gemini-3.8-flash")
 _EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
 REPHRASE_SYSTEM = (
-    "You are the Moneyball EPL football analytics & scouting assistant (Premier League 2025-26, XGBoost + TreeSHAP). "
-    "Rewrite the draft answer so it reads naturally, clearly, and insightfully for a football scout or analyst. "
-    "STRICT FACTUAL RULES:\n"
-    "1. Use ONLY the facts and numbers present in the Draft Answer and Table Preview.\n"
-    "2. NEVER invent, change, round, or recalculate any number, price, percentage, age, or stat.\n"
+    "You are the Moneyball EPL football analytics and scouting assistant for the 2025-26 Premier League season. "
+    "Rewrite the draft answer into smooth, natural, conversational plain English—like a knowledgeable football scout "
+    "explaining the numbers to a club sporting director in 2 to 4 clear sentences (1–2 short paragraphs). "
+    "STRICT RULES:\n"
+    "1. Write in flowing, plain-language sentences and paragraphs. Do NOT use bullet-point lists, numbered lists, or markdown headings (###).\n"
+    "2. Use ONLY the facts and numbers present in the Draft Answer and Table Preview. NEVER invent, change, round, or recalculate any number, price, percentage, age, or stat.\n"
     "3. Keep EVERY bold player name (**Name**) from the Draft Answer intact.\n"
-    "4. If the Draft Answer mentions 'Prototype value (synthetic target)' or 'synthetic', keep that caveat.\n"
-    "5. Keep Markdown formatting (**bold**, bullet points) concise (under 140 words). Do NOT output a Markdown table "
-    "because the UI already renders the interactive table separately below your text.\n"
-    "6. Remember SHAP describes what moves the model's estimate, not real-world causation."
+    "4. Do NOT say 'prototype' or 'synthetic'—the model is trained on real 2025-26 Transfermarkt market valuations.\n"
+    "5. Do NOT output a Markdown table because the UI already renders the interactive table separately below your text.\n"
+    "6. Keep it concise (60 to 120 words) and easy for a non-technical football fan or scout to read."
 )
 
 REWRITE_SYSTEM = (
@@ -42,29 +42,30 @@ REWRITE_SYSTEM = (
     "analytics app into a single clean, direct query understood by the app's deterministic engine.\n"
     "Supported canonical query patterns:\n"
     "- Valuations: 'Value <Player>', 'What is <Player> strengths and weaknesses?', '<Player> stats', '<Player> attacking stats'\n"
-    "- SHAP explanations: 'Explain <Player>', 'What drives valuations for <defenders/midfielders/attackers>?'\n"
-    "- Budget & recruitment: 'Best <defender/midfielder/attacker> to buy in the range of <X>m to <Y>m', 'Best <pos> under <X>m', "
+    "- SHAP explanations: 'Explain <Player>', 'What drives valuations for <goalkeepers/defenders/midfielders/attackers>?'\n"
+    "- Aging & Contract Advisor: 'What contract should we offer <Player>?', 'How will <Player> perform over the next 3 years?'\n"
+    "- Budget & recruitment: 'Best <goalkeeper/defender/midfielder/attacker> to buy in the range of <X>m to <Y>m', 'Best <pos> under <X>m', "
     "'Find creative midfielders between <X>m and <Y>m'\n"
     "- Scouting lookalikes: 'Scout <Player>', 'Find cheaper alternatives to <Player> under <age>'\n"
     "- Comparisons & radar: 'Compare <Player A> and <Player B>', 'Why is <Player A> valued higher than <Player B>?', "
     "'Show radar for <Player A> and <Player B>'\n"
     "- Leaderboards: 'Who is the top scorer?', 'Who has the most assists?', 'Who are the most undervalued midfielders?', "
-    "'Which club has the highest squad value?', 'Rank clubs by team strength', 'Average value by position'\n"
+    "'Top 5 goalkeepers by goals prevented', 'Which club has the highest squad value?', 'Rank clubs by team strength', 'Average value by position'\n"
     "- What-if: 'What if <Player> scored <N> goals?', 'What if <Player> was <age>?'\n"
     "- Model & methodology: 'How does the model work?', 'List all 28 features', 'Listed vs model-estimated value', "
     "'What are the limitations of the model?', 'What is <term>?'\n"
     "Use full standard player/club names if the user used a nickname (e.g. 'Starboy' -> 'Bukayo Saka', 'Cold Palmer' -> 'Cole Palmer', "
     "'Gunners' -> 'Arsenal', 'Spurs' -> 'Tottenham Hotspur', 'City' -> 'Manchester City', 'Pool'/'Reds' -> 'Liverpool').\n"
-    "Set `in_scope` to false ONLY if the user asks about something completely unrelated to Premier League players, valuations, stats, or this model."
+    "Set `in_scope` to false ONLY if the user asks about something completely unrelated to Premier League players, valuations, stats, contracts, or this model."
 )
 
 GROUNDED_QA_SYSTEM = (
-    "You are the Moneyball EPL assistant. Answer the user's question concisely using ONLY the Verified Dataset Snapshot provided. "
+    "You are the Moneyball EPL football scouting assistant. Answer the user's question in smooth, natural, conversational "
+    "plain English (1 to 2 short paragraphs, no bullet-point lists) using ONLY the Verified Dataset Snapshot provided. "
     "STRICT RULES:\n"
     "1. Every single number you write MUST appear verbatim in the Verified Dataset Snapshot — never calculate new numbers or round differently.\n"
     "2. Never mention players or clubs not in the snapshot.\n"
-    "3. Note that valuations are prototype synthetic values where relevant.\n"
-    "4. Keep the answer clear, helpful, and under 140 words in Markdown."
+    "3. Keep the answer conversational, clear, and under 120 words."
 )
 
 
@@ -331,11 +332,11 @@ def answer_grounded(
     top_assists = store.rankings("assists", n=5)["rows"]
 
     lines = [
-        f"Season: {F.raw(m['season'])}, Matchday: {F.int(m['kaggle_matchday'])}, Sample: {F.int(m['n_players'])} outfield players "
+        f"Season: {F.raw(m['season'])}, Matchday: {F.int(m['kaggle_matchday'])}, Sample: {F.int(m['n_players'])} Premier League players "
         f"across {F.int(len(m['clubs']))} clubs (minimum {F.int(m['min_minutes'])} minutes).",
         f"Primary Model: {m['chosen_model']} (5-fold CV R2={F.num(err['cv_r2'], 2)}, RMSE_log={F.num(err['cv_rmse_log'], 3)}, "
         f"MAE={F.eur(err['cv_mae_eur'])}, median abs error={F.pct(err['cv_median_abs_pct'], signed=False)}). "
-        f"Base player estimate: {F.eur(m['base_eur'])}. Target source: synthetic prototype.",
+        f"Base player estimate: {F.eur(m['base_eur'])}. Target source: 2025-26 Transfermarkt market values.",
         "Top Valued Players: " + "; ".join(
             f"{r['name']} ({r['club']}, {r['position']}, age {F.int(r['age'])}, est {F.eur(r['estimated_value_eur'])}, listed {F.eur(r['listed_value_eur'])})"
             for r in top_val
