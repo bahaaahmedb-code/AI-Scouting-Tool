@@ -201,17 +201,27 @@ def rankings(request: Request, by: str = Query("estimated_value", max_length=40)
 
 class WhatIfBody(BaseModel):
     player: int = Field(ge=0)
-    feature: str = Field(max_length=40)
-    value: float = Field(ge=0, le=10000)
+    feature: str | None = Field(None, max_length=40)
+    value: float | None = Field(None, ge=0, le=10000)
+    changes: dict[str, float] | None = None
 
 
 @app.post("/api/whatif")
 @limiter.limit(settings.rate_limit)
 def whatif(request: Request, body: WhatIfBody):
     try:
-        return S().whatif(_player(body.player), body.feature, body.value)
+        return S().whatif(_player(body.player), body.feature, body.value, changes=body.changes)
     except KeyError:
         raise HTTPException(422, "This feature cannot be changed.")
+
+
+@app.get("/api/clubs/audit")
+@limiter.limit(settings.rate_limit)
+def club_audit(request: Request, club: str = Query(..., max_length=80), max_pct: float = Query(90.0, ge=30, le=200)):
+    try:
+        return S().club_audit(club, max_pct=max_pct)
+    except KeyError:
+        raise HTTPException(404, f"Club '{club}' not found.")
 
 
 @app.get("/api/glossary")

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getPlayers, getMeta } from '../api'
 import { fmtValue, debounce, posClass } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer } from '../components/UI'
+import { ShortlistBtn } from '../components/ShortlistDrawer'
 
 const POSITIONS = ['', 'G', 'D', 'M', 'F']
 const POS_LABELS = { '': 'All positions', G: 'Goalkeepers', D: 'Defenders', M: 'Midfielders', F: 'Attackers' }
@@ -52,6 +53,30 @@ export default function Players() {
 
   const [clubs, setClubs] = useState([])
   useEffect(() => { getMeta().then(m => setClubs(m.clubs || [])).catch(() => {}) }, [])
+
+  // Club recruitment summary (whole squad, independent of the table's position / search / limit filters)
+  const [squad, setSquad] = useState(null)
+  useEffect(() => {
+    if (!club) { setSquad(null); return }
+    let active = true
+    getPlayers({ club, limit: 100 })
+      .then(d => {
+        if (!active) return
+        const list = (Array.isArray(d) ? d : (d.value ?? d.players ?? [])).map(norm)
+        if (!list.length) { setSquad(null); return }
+        const est = list.reduce((s, p) => s + (p.estimated_value ?? 0), 0)
+        const mkt = list.reduce((s, p) => s + (p.market_value_eur ?? 0), 0)
+        const avgAge = list.reduce((s, p) => s + (p.age ?? 0), 0) / list.length
+        const top = [...list].sort((a, b) => (b.estimated_value ?? 0) - (a.estimated_value ?? 0))[0]
+        const bargains = list
+          .filter(p => p.market_value_eur > 0 && p.estimated_value > 0)
+          .map(p => ({ ...p, ratio: p.estimated_value / p.market_value_eur }))
+          .sort((a, b) => b.ratio - a.ratio)
+        setSquad({ n: list.length, est, mkt, gap: mkt > 0 ? (est / mkt - 1) * 100 : null, avgAge, top, bargain: bargains[0] })
+      })
+      .catch(() => { if (active) setSquad(null) })
+    return () => { active = false }
+  }, [club])
 
   function handleSort(col) {
     if (sortBy === col) setSortAsc(v => !v)
@@ -135,6 +160,64 @@ export default function Players() {
           </div>
         </div>
 
+        {/* ── Club recruitment summary ────────────────────────── */}
+        {squad && (
+          <div className="card card--gradient mb-24 animate-fade" style={{ padding: '22px 24px' }} id="club-summary">
+            <div className="flex items-center justify-between wrap gap-12" style={{ marginBottom: 18 }}>
+              <div>
+                <div className="label" style={{ marginBottom: 4 }}>Club recruitment summary</div>
+                <h3 style={{ margin: 0 }}>{club}</h3>
+              </div>
+              <div className="flex items-center gap-12 wrap">
+                <span className="text-muted" style={{ fontSize: '0.82rem' }}>{squad.n} qualified players (≥ 900 min)</span>
+                <Link to={`/squad?club=${encodeURIComponent(club)}`} className="btn btn-primary btn-sm">
+                  Open Squad Audit &amp; Best XI →
+                </Link>
+              </div>
+            </div>
+            <div className="grid-4" style={{ gap: 14 }}>
+              <div style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--c-border)' }}>
+                <div className="label mb-4">Squad value (model)</div>
+                <div style={{ fontWeight: 800, fontSize: '1.25rem', color: 'var(--c-accent)', fontFamily: 'var(--font-mono)' }}>{fmtValue(squad.est)}</div>
+                <div className="text-muted" style={{ fontSize: '0.78rem', marginTop: 6 }}>
+                  Transfermarkt: <strong style={{ color: 'var(--c-text)' }}>{fmtValue(squad.mkt)}</strong>
+                  {squad.gap != null && (
+                    <span style={{ marginLeft: 6, fontWeight: 700, color: squad.gap >= 0 ? 'var(--c-green)' : 'var(--c-red)' }}>
+                      ({squad.gap >= 0 ? '+' : ''}{squad.gap.toFixed(0)}%)
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--c-border)' }}>
+                <div className="label mb-4">Average squad age</div>
+                <div style={{ fontWeight: 800, fontSize: '1.25rem', fontFamily: 'var(--font-mono)' }}>{squad.avgAge.toFixed(1)}</div>
+                <div className="text-muted" style={{ fontSize: '0.78rem', marginTop: 6 }}>years across {squad.n} players</div>
+              </div>
+              <div style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--c-border)' }}>
+                <div className="label mb-4">Highest-valued player</div>
+                <Link to={`/players/${squad.top.player_id}`} style={{ fontWeight: 700, color: 'var(--c-primary)' }}>{squad.top.player_name}</Link>
+                <div className="text-muted" style={{ fontSize: '0.78rem', marginTop: 6 }}>
+                  {fmtValue(squad.top.estimated_value)} · age {squad.top.age}
+                </div>
+              </div>
+              <div style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--c-border)' }}>
+                <div className="label mb-4">Top undervalued bargain</div>
+                {squad.bargain && squad.bargain.ratio > 1 ? (
+                  <>
+                    <Link to={`/players/${squad.bargain.player_id}`} style={{ fontWeight: 700, color: 'var(--c-primary)' }}>{squad.bargain.player_name}</Link>
+                    <div className="text-muted" style={{ fontSize: '0.78rem', marginTop: 6 }}>
+                      Est. {fmtValue(squad.bargain.estimated_value)} vs listed {fmtValue(squad.bargain.market_value_eur)}
+                      <span style={{ marginLeft: 6, fontWeight: 700, color: 'var(--c-green)' }}>(+{((squad.bargain.ratio - 1) * 100).toFixed(0)}%)</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-muted" style={{ fontSize: '0.85rem' }}>No player is valued above his listed price.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Table ───────────────────────────────────────────── */}
         {error && <ErrorBox message={error} onReset={() => { setQ(''); setPos(''); setClub('') }} />}
         {loading && <PageLoading />}
@@ -154,10 +237,9 @@ export default function Players() {
         {!loading && !error && sorted.length > 0 && (
           <>
             <div className="table-wrap" style={{ marginBottom: 16 }}>
-              <table role="grid" aria-label="Player table">
+              <table className="table-compact" role="grid" aria-label="Player table">
                 <thead>
                   <tr>
-                    <th>#</th>
                     <th>Player</th>
                     <th>Pos</th>
                     <th>Club</th>
@@ -173,15 +255,22 @@ export default function Players() {
                 <tbody>
                   {sorted.map((p, i) => (
                     <tr key={p.player_id}>
-                      <td className="text-subtle" style={{ fontSize: '0.8rem' }}>{i + 1}</td>
                       <td>
-                        <Link
-                          to={`/players/${p.player_id}`}
-                          style={{ color: 'var(--c-primary)', fontWeight: 600 }}
-                          id={`player-row-${p.player_id}`}
-                        >
-                          {p.player_name}
-                        </Link>
+                        <div className="flex items-center gap-10">
+                          <span
+                            className="text-subtle"
+                            style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', minWidth: 22, textAlign: 'right' }}
+                          >
+                            {i + 1}
+                          </span>
+                          <Link
+                            to={`/players/${p.player_id}`}
+                            style={{ color: 'var(--c-primary)', fontWeight: 600 }}
+                            id={`player-row-${p.player_id}`}
+                          >
+                            {p.player_name}
+                          </Link>
+                        </div>
                       </td>
                       <td><PosChip pos={p.position} /></td>
                       <td className="text-muted" style={{ fontSize: '0.85rem' }}>{p.club}</td>
@@ -198,7 +287,8 @@ export default function Players() {
                         {p.market_value_eur ? fmtValue(p.market_value_eur) : '—'}
                       </td>
                       <td>
-                        <div className="flex gap-4">
+                        <div className="flex gap-8 items-center">
+                          <ShortlistBtn player={p} compact />
                           <Link
                             to={`/players/${p.player_id}`}
                             className="btn btn-secondary btn-sm"

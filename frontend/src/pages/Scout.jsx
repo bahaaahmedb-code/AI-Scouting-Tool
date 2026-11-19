@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { getPlayers, postScout } from '../api'
 import { fmtValue, debounce, posClass } from '../utils'
-import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../components/UI'
+import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat, RangeSlider } from '../components/UI'
+import { ShortlistBtn } from '../components/ShortlistDrawer'
 import { IconTarget, IconSearch, IconInfo } from '../components/Icons'
 
 const POS_MODES = [
@@ -203,16 +204,20 @@ export default function Scout() {
               <label className="label mb-8" htmlFor="scout-max-pct">
                 Max price (% of target estimate)
               </label>
-              <div className="flex items-center gap-12">
-                <input
+              <div className="flex items-center gap-16">
+                <RangeSlider
                   id="scout-max-pct"
-                  type="range" min={5} max={200} step={5}
+                  min={5}
+                  max={200}
+                  step={5}
                   value={maxPct}
-                  onChange={e => setMaxPct(e.target.value)}
+                  onChange={v => setMaxPct(v)}
+                  tickStep={10}
+                  labelStep={20}
                   style={{ flex: 1 }}
-                  aria-label={`Max price ${maxPct}% of target`}
+                  ariaLabel={`Max price ${maxPct}% of target`}
                 />
-                <span style={{ minWidth: 50, fontWeight: 700, color: 'var(--c-primary)' }}>{maxPct}%</span>
+                <span style={{ minWidth: 50, fontWeight: 700, color: 'var(--c-primary)', alignSelf: 'flex-start', paddingTop: 2 }}>{maxPct}%</span>
               </div>
               <p className="text-subtle mt-4" style={{ fontSize: '0.78rem' }}>
                 Only show candidates valued at most {maxPct}% of target's estimate
@@ -381,7 +386,8 @@ export default function Scout() {
                             </div>
                           </td>
                           <td>
-                            <div className="flex gap-4">
+                            <div className="flex gap-8 items-center">
+                              <ShortlistBtn player={{ ...c, id: cId, name: cName, estimated_value_eur: cVal }} compact />
                               <Link to={`/players/${cId}`} className="btn btn-secondary btn-sm" id={`scout-profile-btn-${cId}`}>
                                 Profile
                               </Link>

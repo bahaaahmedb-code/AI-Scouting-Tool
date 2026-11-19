@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getRankings } from '../api'
 import { fmtValue, fmtNum } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../components/UI'
+import { ShortlistBtn } from '../components/ShortlistDrawer'
 import { Link } from 'react-router-dom'
 import { IconTrophy, IconMedal } from '../components/Icons'
 
@@ -290,8 +291,11 @@ export default function Rankings() {
                       </td>
                       <td>{fmtValue(p.estimated_value)}</td>
                       <td>
-                        <Link to={`/players/${p.player_id}`} className="btn btn-ghost btn-sm"
-                          id={`rankings-profile-btn-${p.player_id}`}>→</Link>
+                        <div className="flex gap-8 items-center">
+                          <ShortlistBtn player={p} compact />
+                          <Link to={`/players/${p.player_id}`} className="btn btn-ghost btn-sm"
+                            id={`rankings-profile-btn-${p.player_id}`}>→</Link>
+                        </div>
                       </td>
                     </tr>
                   ))}

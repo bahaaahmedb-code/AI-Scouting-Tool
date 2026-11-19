@@ -10,7 +10,7 @@ import {
 import { fmtNum, fmtValue } from '../utils'
 import RadarChart from '../components/RadarChart'
 import WaterfallChart from '../components/WaterfallChart'
-import { PageLoading, ErrorBox, Disclaimer, DataCaveat } from '../components/UI'
+import { PageLoading, ErrorBox, Disclaimer, DataCaveat, RangeSlider } from '../components/UI'
 import { IconChart, IconInfo } from '../components/Icons'
 
 const POS = [
@@ -274,12 +274,20 @@ export default function Dashboard() {
             sub="Dots above the dashed line are valued higher by the model than listed. Click a dot to inspect that player below."
             controls={<Chips options={POS} value={scatterPos} onChange={setScatterPos} idPrefix="dash-scatter-pos" />}
           >
-            <div className="flex gap-12 wrap mb-8" style={{ alignItems: 'center', fontSize: '0.82rem' }}>
+            <div className="flex gap-16 wrap mb-12" style={{ alignItems: 'center', fontSize: '0.82rem' }}>
               <span className="text-muted">Age {minAge}–{maxAge}</span>
-              <input type="range" min={16} max={40} value={minAge} aria-label="Minimum age"
-                onChange={e => setMinAge(Math.min(Number(e.target.value), maxAge))} />
-              <input type="range" min={16} max={40} value={maxAge} aria-label="Maximum age"
-                onChange={e => setMaxAge(Math.max(Number(e.target.value), minAge))} />
+              <RangeSlider
+                min={16} max={40} value={minAge} tickStep={10}
+                ariaLabel="Minimum age"
+                style={{ width: 120 }}
+                onChange={v => setMinAge(Math.min(v, maxAge))}
+              />
+              <RangeSlider
+                min={16} max={40} value={maxAge} tickStep={10}
+                ariaLabel="Maximum age"
+                style={{ width: 120 }}
+                onChange={v => setMaxAge(Math.max(v, minAge))}
+              />
               <span className="text-subtle">{scatterData.length} players</span>
             </div>
             <div style={{ height: 320 }}>
@@ -333,10 +341,15 @@ export default function Dashboard() {
               options={[{ value: 'features', label: 'By feature' }, { value: 'groups', label: 'By group' }]}
             />
             {impView === 'features' && (
-              <label className="flex gap-8" style={{ alignItems: 'center', fontSize: '0.85rem' }}>
+              <div className="flex gap-12" style={{ alignItems: 'center', fontSize: '0.85rem' }}>
                 <span className="text-muted">Top {topN}</span>
-                <input type="range" min={5} max={30} value={topN} onChange={e => setTopN(Number(e.target.value))} />
-              </label>
+                <RangeSlider
+                  min={5} max={30} value={topN} tickStep={10}
+                  ariaLabel={`Top ${topN} features`}
+                  style={{ width: 140 }}
+                  onChange={setTopN}
+                />
+              </div>
             )}
           </div>
           {!importance ? <PageLoading /> : (

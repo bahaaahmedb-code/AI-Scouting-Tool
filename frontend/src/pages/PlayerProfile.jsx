@@ -5,6 +5,7 @@ import { fmtValue, fmtNum } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../components/UI'
 import WaterfallChart from '../components/WaterfallChart'
 import AgingProjectionPanel from '../components/AgingProjectionPanel'
+import { ShortlistBtn } from '../components/ShortlistDrawer'
 import {
   IconBall, IconStadium, IconCalendar, IconGlobe, IconClock, IconClipboard,
   IconContract, IconTarget, IconScale, IconChart, IconTrendUp, IconBrain, IconShield, IconAlert,
@@ -103,7 +104,7 @@ export default function PlayerProfile() {
     <main className="page animate-fade">
       <div className="container">
         {/* ── Breadcrumb ──────────────────────────────────────── */}
-        <div className="flex items-center gap-8 mb-24" style={{ fontSize: '0.85rem', color: 'var(--c-muted)' }}>
+        <div className="flex items-center gap-8 mb-24 no-print" style={{ fontSize: '0.85rem', color: 'var(--c-muted)' }}>
           <Link to="/players" style={{ color: 'var(--c-primary)' }}>Players</Link>
           <span>›</span>
           <span>{p.name ?? p.player_name}</span>
@@ -174,7 +175,12 @@ export default function PlayerProfile() {
                   )}
                 </div>
               )}
-              <div className="flex gap-8 mt-12" style={{ justifyContent: 'flex-end' }}>
+              <div className="flex gap-8 mt-12 no-print" style={{ justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <ShortlistBtn player={p} />
+                <button type="button" className="btn btn-primary btn-sm" id="profile-print-btn"
+                  onClick={() => window.print()} title="Print or save this player as a PDF scouting report">
+                  <IconClipboard size={14} /> Print Scouting Report
+                </button>
                 <Link to={`/scout?target=${pid}`} className="btn btn-secondary btn-sm" id="profile-scout-btn"><IconTarget size={14} /> Scout</Link>
                 <Link to={`/compare?ids=${pid}`} className="btn btn-ghost btn-sm" id="profile-compare-btn"><IconScale size={14} /> Compare</Link>
               </div>
@@ -183,6 +189,7 @@ export default function PlayerProfile() {
         </div>
 
         {/* ── Tabs ─────────────────────────────────────────────── */}
+        <div className="no-print">
         <div className="tabs" role="tablist">
           {[
             { id: 'stats',      label: 'Statistics',               Icon: IconChart },
@@ -306,6 +313,86 @@ export default function PlayerProfile() {
             </div>
           </div>
         )}
+
+        </div>{/* end no-print (interactive tabs) */}
+
+        {/* ── Printable scouting report (visible only when printing / saving as PDF) ── */}
+        <div className="print-only">
+          <div className="card mb-16">
+            <h3 className="mb-12">Valuation summary</h3>
+            <div className="grid-4" style={{ gap: 12 }}>
+              {[
+                ['Model estimate', fmtValue(estVal)],
+                ['Transfermarkt value', mktVal ? fmtValue(mktVal) : '—'],
+                ['Typical range', p.band_low_eur && p.band_high_eur ? `${fmtValue(p.band_low_eur)} – ${fmtValue(p.band_high_eur)}` : '—'],
+                ['Rank in position', p.rank_in_position ? `#${p.rank_in_position} of ${p.n_in_position}` : '—'],
+              ].map(([k, v]) => (
+                <div key={k} style={{ background: 'var(--c-surface)', borderRadius: 8, padding: '10px 14px' }}>
+                  <div className="label mb-4">{k}</div>
+                  <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {(p.key_stats?.length > 0) && (
+            <div className="card mb-16">
+              <h3 className="mb-12">Key statistics (percentile within position)</h3>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Metric</th><th>Value</th><th>Percentile</th><th>Position average</th></tr></thead>
+                  <tbody>
+                    {p.key_stats.map(s => (
+                      <tr key={s.key}>
+                        <td>{s.label}</td>
+                        <td>{['pass_accuracy', 'save_pct', 'clean_sheet_pct'].includes(s.key) ? `${fmtNum(s.value, 1)}%` : fmtNum(s.value)}</td>
+                        <td>{s.pct_in_position != null ? `${s.pct_in_position.toFixed(0)}%` : '—'}</td>
+                        <td>{s.position_mean != null ? fmtNum(s.position_mean) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="card mb-16">
+            <h3 className="mb-12">Strengths, weaknesses &amp; value drivers</h3>
+            {strengths.length > 0 && (
+              <div className="mb-12">
+                <div className="label text-green mb-8">Strengths (≥75th percentile)</div>
+                <div className="flex gap-8 wrap">{strengths.map((s, i) => <span key={i} className="badge badge-green">{s}</span>)}</div>
+              </div>
+            )}
+            {weaknesses.length > 0 && (
+              <div className="mb-12">
+                <div className="label text-red mb-8">Areas to improve (≤25th percentile)</div>
+                <div className="flex gap-8 wrap">{weaknesses.map((s, i) => <span key={i} className="badge badge-red">{s}</span>)}</div>
+              </div>
+            )}
+            {p.top_drivers?.length > 0 && (
+              <div>
+                <div className="label mb-8">Top SHAP value drivers</div>
+                {p.top_drivers.map((d, i) => (
+                  <div key={i} className="flex items-center gap-12 mb-4">
+                    <span style={{ color: 'var(--c-primary)', fontWeight: 700, width: 20 }}>{i + 1}</span>
+                    <span style={{ flex: 1 }}>{d.label}</span>
+                    <span style={{ color: 'var(--c-accent)', fontWeight: 600 }}>{d.pct >= 0 ? '+' : ''}{d.pct?.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="print-break">
+            <AgingProjectionPanel projection={p.projection} />
+          </div>
+
+          <div className="card print-break mt-16">
+            <h3 className="mb-12">SHAP waterfall: how each stat moves the estimate</h3>
+            <WaterfallChart data={shap} />
+          </div>
+        </div>
 
         <DataCaveat />
         <Disclaimer />

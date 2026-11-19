@@ -50,10 +50,12 @@ def radar_percentiles(d: pd.DataFrame) -> pd.DataFrame:
     return pct
 
 
-def shared_strengths(z_a: np.ndarray, z_b: np.ndarray, k: int = 3) -> list[str]:
+def shared_strengths(z_a: np.ndarray, z_b: np.ndarray, k: int = 3, pos: str | None = None) -> list[str]:
     both = np.minimum(z_a, z_b)
     order = np.argsort(-both)
-    return [ALL_SIM_FEATURES[j] for j in order[:k] if both[j] > 0]
+    allowed = set(GK_SIM_FEATURES if pos == "G" else (SIM_FEATURES if pos in ("D", "M", "F") else ALL_SIM_FEATURES))
+    out = [ALL_SIM_FEATURES[j] for j in order if both[j] > 0 and ALL_SIM_FEATURES[j] in allowed]
+    return out[:k]
 
 
 @dataclass

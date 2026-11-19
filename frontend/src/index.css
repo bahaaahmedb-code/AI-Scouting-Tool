@@ -236,6 +236,7 @@ tbody tr { transition: background var(--tr); }
 tbody tr:hover { background: rgba(200,245,66,0.045); }
 .th-sort { cursor: pointer; user-select: none; }
 .th-sort:hover { color: var(--c-text); }
+.table-compact th, .table-compact td { padding: 12px 11px; }
 
 /* ─── Waterfall chart ────────────────────────────────────────────────────────── */
 .waterfall-row {
@@ -401,9 +402,12 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 .justify-between { justify-content: space-between; }
 .justify-center  { justify-content: center; }
 .gap-4  { gap: 4px; }
+.gap-6  { gap: 6px; }
 .gap-8  { gap: 8px; }
+.gap-10 { gap: 10px; }
 .gap-12 { gap: 12px; }
 .gap-16 { gap: 16px; }
+.gap-20 { gap: 20px; }
 .gap-24 { gap: 24px; }
 .gap-32 { gap: 32px; }
 .wrap { flex-wrap: wrap; }
@@ -413,13 +417,108 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 .mt-8  { margin-top: 8px; }
 .mt-12 { margin-top: 12px; }
 .mt-16 { margin-top: 16px; }
+.mt-20 { margin-top: 20px; }
 .mt-24 { margin-top: 24px; }
 .mt-32 { margin-top: 32px; }
 .mb-4  { margin-bottom: 4px; }
+.mb-6  { margin-bottom: 6px; }
 .mb-8  { margin-bottom: 8px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-12 { margin-bottom: 12px; }
 .mb-16 { margin-bottom: 16px; }
+.mb-20 { margin-bottom: 20px; }
 .mb-24 { margin-bottom: 24px; }
 .mb-32 { margin-bottom: 32px; }
+
+/* ─── Range Slider with Tick Marks ──────────────────────────────────────────── */
+.range-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  user-select: none;
+}
+.range-slider-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+  margin: 6px 0 2px;
+}
+.range-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  border: 2px solid #090e0a;
+  box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.28);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.range-slider-input::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.35);
+}
+.range-slider-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  border: 2px solid #090e0a;
+  box-shadow: 0 0 0 2px rgba(132, 204, 22, 0.28);
+  cursor: pointer;
+}
+.range-slider-ticks {
+  position: relative;
+  height: 20px;
+  margin: 0 8px;
+}
+.range-slider-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.range-slider-tick-bar {
+  width: 1.5px;
+  height: 6px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.34);
+  transition: background 0.12s ease;
+}
+.range-slider-tick.is-major .range-slider-tick-bar {
+  height: 7px;
+  background: rgba(255, 255, 255, 0.52);
+}
+.range-slider-tick.is-active .range-slider-tick-bar {
+  background: var(--c-primary);
+}
+.range-slider-tick-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  line-height: 1;
+  margin-top: 3px;
+  color: var(--c-subtle);
+  white-space: nowrap;
+}
+.range-slider-tick.is-active .range-slider-tick-label {
+  color: var(--c-primary);
+  font-weight: 700;
+}
+.range-slider-tick:hover .range-slider-tick-bar {
+  background: var(--c-primary);
+}
+.range-slider-tick:hover .range-slider-tick-label {
+  color: var(--c-text);
+}
 
 /* ─── Position chip ──────────────────────────────────────────────────────────── */
 .pos-chip {
@@ -485,3 +584,19 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 
 /* Remove browser focus ring around interactive Recharts SVGs */
 .recharts-wrapper, .recharts-surface, .recharts-layer { outline: none; }
+
+/* ─── Print / "Save as PDF" scouting report ─────────────────────────────────── */
+.print-only { display: none; }
+@media print {
+  @page { margin: 10mm; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { background: var(--c-bg) !important; }
+  .no-print, .nav, nav, footer { display: none !important; }
+  .print-only { display: block !important; }
+  .page { padding: 0 !important; min-height: 0 !important; }
+  .animate-fade, .animate-slide { animation: none !important; }
+  .card { break-inside: avoid; box-shadow: none !important; }
+  .print-break { break-before: page; }
+  .table-wrap { overflow: visible !important; }
+  tr { break-inside: avoid; }
+}

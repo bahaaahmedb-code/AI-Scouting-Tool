@@ -554,33 +554,258 @@ class Store:
             "woodwork": "Hit woodwork",
         }.get(by, pretty(by))
 
-    # ------------------------------------------------------------------ what-if
-    def whatif(self, i: int, feature: str, value: float) -> dict:
-        is_gk = self.d.at[i, "position"] == "G"
+    # ------------------------------------------------------------------ what-if & club audit
+    def whatif(self, i: int, feature: str | None = None, value: float | None = None,
+               changes: dict[str, float] | None = None) -> dict:
+        pos = self.d.at[i, "position"]
+        is_gk = pos == "G"
         valid_feats = GK_NUM_FEATURES if is_gk else NUM_FEATURES
-        if feature not in valid_feats or feature == "age_sq":
-            raise KeyError(feature)
+        updates: dict[str, float] = {}
+        if changes:
+            for k, v in changes.items():
+                if k not in valid_feats or k == "age_sq":
+                    raise KeyError(k)
+                updates[k] = float(v)
+        elif feature is not None and value is not None:
+            if feature not in valid_feats or feature == "age_sq":
+                raise KeyError(feature)
+            updates[feature] = float(value)
+        else:
+            raise KeyError("feature")
+
+        before = float(self.d.at[i, "estimated_value_eur"])
         if is_gk:
             X = self.d.loc[[i], GK_NUM_FEATURES].copy()
-            before = float(self.d.at[i, "estimated_value_eur"])
-            X[feature] = float(value)
-            if feature == "age":
-                X["age_sq"] = float(value) ** 2
+            for f_k, f_v in updates.items():
+                X[f_k] = f_v
+                if f_k == "age":
+                    X["age_sq"] = f_v ** 2
             after = float(np.exp(self.b["gk_model"]["pipeline"].predict(X)[0]))
         else:
             X = self.d.loc[[i], NUM_FEATURES + CAT_FEATURES].copy()
-            before = float(self.d.at[i, "estimated_value_eur"])
-            X[feature] = float(value)
-            if feature == "age":
-                X["age_sq"] = float(value) ** 2
-            elif feature == "goals_p90":
-                pen_p90 = max(0.0, float(self.d.at[i, "goals_p90"] - self.d.at[i, "np_goals_p90"]))
-                X["np_goals_p90"] = max(0.0, float(value) - pen_p90)
+            for f_k, f_v in updates.items():
+                X[f_k] = f_v
+                if f_k == "age":
+                    X["age_sq"] = f_v ** 2
+                elif f_k == "goals_p90" and "np_goals_p90" not in updates:
+                    pen_p90 = max(0.0, float(self.d.at[i, "goals_p90"] - self.d.at[i, "np_goals_p90"]))
+                    X["np_goals_p90"] = max(0.0, f_v - pen_p90)
             after = float(np.exp(self.b["pipeline"].predict(X)[0]))
-        return {"player": self.summary(i), "feature": feature, "label": pretty(feature),
-                "old_value": _f(self.d.at[i, feature]), "new_value": float(value),
-                "before_eur": before, "after_eur": after, "change_pct": (after / before - 1) * 100,
-                "note": "Model estimate for a hypothetical profile, not a real player."}
+
+        pos_peers = self.d.loc[(self.d["position"] == pos) & (self.d.index != i), "estimated_value_eur"]
+        rank_before = int((pos_peers > before).sum()) + 1
+        rank_after = int((pos_peers > after).sum()) + 1
+        first_feat = next(iter(updates))
+        applied = [
+            {"feature": f_k, "label": pretty(f_k), "old_value": _f(self.d.at[i, f_k]), "new_value": _f(f_v)}
+            for f_k, f_v in updates.items()
+        ]
+        return {
+            "player": self.summary(i),
+            "feature": first_feat,
+            "label": pretty(first_feat) if len(updates) == 1 else f"{len(updates)} modified attributes",
+            "old_value": _f(self.d.at[i, first_feat]),
+            "new_value": float(updates[first_feat]),
+            "applied_changes": applied,
+            "before_eur": before,
+            "after_eur": after,
+            "delta_eur": after - before,
+            "change_pct": (after / before - 1) * 100,
+            "rank_before": rank_before,
+            "rank_after": rank_after,
+            "n_in_position": int(len(pos_peers) + 1),
+            "note": "Model estimate for a hypothetical profile, not a real player.",
+        }
+
+    def club_audit(self, club: str, max_pct: float = 90.0) -> dict:
+        sub = self.d[self.d["team_name"] == club]
+        if sub.empty:
+            raise KeyError(club)
+
+        roster = []
+        for i in sub.index:
+            s = self.summary(int(i))
+            proj = self.projection(int(i)) or {}
+            contract = proj.get("contract") or {}
+            r_idx = float(proj.get("current_role_index") or 60.0)
+            subrole = proj.get("subrole") or POS_NAME[s["position"]]
+            roster.append({
+                **s,
+                "role_index": _f(r_idx, 1),
+                "subrole": subrole,
+                "trajectory_label": proj.get("trajectory_label") or "Stable",
+                "trajectory_badge": proj.get("trajectory_badge") or "blue",
+                "recommended_years": contract.get("recommended_years") or "3 Years",
+                "contract_verdict": contract.get("verdict") or "Standard Deal",
+                "contract_risk": contract.get("risk_level") or "Low",
+                "val_retention_3y_pct": _f(contract.get("val_retention_3y_pct"), 1),
+                "att_score": float(self.d.at[i, "xg_p90"] + self.d.at[i, "xa_p90"] + self.d.at[i, "goals_p90"]),
+            })
+
+        # Sort helper: blend of Role Index and playing time
+        def starter_key(p):
+            return (p["role_index"] or 0.0) + 0.004 * (p["minutes"] or 0)
+
+        gks = sorted([p for p in roster if p["position"] == "G"], key=starter_key, reverse=True)
+        defs = sorted([p for p in roster if p["position"] == "D"], key=starter_key, reverse=True)
+        mids = sorted([p for p in roster if p["position"] == "M"], key=starter_key, reverse=True)
+        fwds = sorted([p for p in roster if p["position"] == "F"], key=starter_key, reverse=True)
+
+        xi_gk = gks[:1]
+        n_def_pick = min(4, max(3, len(defs))) if len(defs) >= 3 else len(defs)
+        xi_def = defs[:n_def_pick]
+        picked_ids = {p["id"] for p in xi_gk + xi_def}
+
+        rem_outfield = sorted(
+            [p for p in roster if p["position"] != "G" and p["id"] not in picked_ids],
+            key=starter_key,
+            reverse=True,
+        )
+        spots_left = max(0, 11 - len(xi_gk) - len(xi_def))
+        chosen_mid_att = rem_outfield[:spots_left]
+        picked_ids.update(p["id"] for p in chosen_mid_att)
+
+        # Split chosen_mid_att into MID line and ATT line (target 3 ATT and 3-4 MID)
+        pure_f = [p for p in chosen_mid_att if p["position"] == "F"]
+        non_f = [p for p in chosen_mid_att if p["position"] != "F"]
+        # Sort non_f by attacking orientation (Wingers / Attacking Midfielders first)
+        non_f_att = sorted(
+            non_f,
+            key=lambda p: (1 if ("Winger" in p["subrole"] or "Attacking" in p["subrole"]) else 0, p["att_score"]),
+            reverse=True,
+        )
+        n_att_target = min(3, max(1, len(pure_f) if len(pure_f) >= 2 else 3))
+        need_wingers = max(0, n_att_target - len(pure_f))
+        xi_att = pure_f + non_f_att[:need_wingers]
+        att_ids = {p["id"] for p in xi_att}
+        xi_mid = [p for p in chosen_mid_att if p["id"] not in att_ids]
+
+        starters = xi_gk + xi_def + xi_mid + xi_att
+        bench = sorted([p for p in roster if p["id"] not in picked_ids], key=starter_key, reverse=True)
+
+        best_xi_est = sum(p["estimated_value_eur"] or 0.0 for p in starters)
+        best_xi_mkt = sum(p["listed_value_eur"] or 0.0 for p in starters)
+        total_est = sum(p["estimated_value_eur"] or 0.0 for p in roster)
+        total_mkt = sum(p["listed_value_eur"] or 0.0 for p in roster)
+        avg_age = float(np.mean([p["age"] for p in roster]))
+        xi_avg_age = float(np.mean([p["age"] for p in starters])) if starters else avg_age
+        xi_avg_role = float(np.mean([p["role_index"] for p in starters])) if starters else 65.0
+
+        # Identify top 3 squad vulnerabilities / succession priorities among Starters
+        vuln_candidates = []
+        for p in starters:
+            reasons = []
+            urgency = 0.0
+            if p["age"] >= 31:
+                reasons.append(f"Veteran succession priority (age {p['age']})")
+                urgency += 35.0 + (p["age"] - 30) * 6.0
+            elif p["age"] >= 29 and (p["val_retention_3y_pct"] or 0) < -20:
+                reasons.append(f"Approaching post-peak depreciation ({p['val_retention_3y_pct']:+.0f}% 3Y value)")
+                urgency += 22.0
+            if (p["role_index"] or 0) < 66.0:
+                reasons.append(f"Below-elite starter Role Index ({p['role_index']:.1f}/100)")
+                urgency += (70.0 - (p["role_index"] or 60.0)) * 1.8
+            pos_count = sum(1 for x in roster if x["position"] == p["position"])
+            if (p["position"] == "D" and pos_count <= 3) or (p["position"] in ("F", "G") and pos_count <= 1):
+                reasons.append(f"Thin positional depth ({pos_count} qualified {POS_NAME[p['position']].lower()} in squad)")
+                urgency += 12.0
+            if not reasons:
+                reasons.append(f"Long-term rotation & value upgrade target ({p['subrole']})")
+                urgency += max(1.0, 82.0 - (p["role_index"] or 70.0)) * 0.5
+            vuln_candidates.append((urgency, reasons, p))
+
+        vuln_candidates.sort(key=lambda t: -t[0])
+        chosen_vulns = []
+        seen_pos = set()
+        for urg, reasons, p in vuln_candidates:
+            if len(chosen_vulns) >= 3:
+                break
+            if p["position"] in seen_pos and len(vuln_candidates) > 3 and urg < 30:
+                continue
+            seen_pos.add(p["position"])
+            chosen_vulns.append((urg, reasons, p))
+
+        club_player_ids = [int(i) for i in sub.index]
+        vulnerabilities = []
+        for urg, reasons, p in chosen_vulns:
+            pid = p["id"]
+            # Find younger, high-performing external replacements in the same position
+            q = ScoutQuery(
+                target=pid,
+                same_position=True,
+                max_pct=max_pct if p["age"] < 30 else max(max_pct, 250.0),
+                max_age=min(27, max(24, p["age"] - 1)) if p["age"] >= 28 else 26,
+                n=5,
+                exclude=club_player_ids,
+            )
+            sc = self.scout(q)
+            recs = sc["results"]
+            if len(recs) < 3:
+                q_broad = ScoutQuery(
+                    target=pid,
+                    same_position=True,
+                    max_pct=None,
+                    max_age=28,
+                    n=5,
+                    exclude=club_player_ids,
+                )
+                recs = self.scout(q_broad)["results"]
+
+            enriched_recs = []
+            for r_cand in recs[:3]:
+                cid = r_cand["id"]
+                c_proj = self.projection(cid) or {}
+                c_cont = c_proj.get("contract") or {}
+                c_est = float(self.d.at[cid, "estimated_value_eur"])
+                c_mkt = float(self.d.at[cid, "market_value_eur"])
+                enriched_recs.append({
+                    "id": cid,
+                    "name": r_cand["name"],
+                    "club": r_cand["club"],
+                    "position": r_cand["position"],
+                    "age": r_cand["age"],
+                    "similarity": _f(r_cand["similarity"], 3),
+                    "estimated_value_eur": _f(c_est),
+                    "listed_value_eur": _f(c_mkt),
+                    "savings_vs_starter_eur": _f((p["estimated_value_eur"] or 0.0) - c_est),
+                    "role_index": _f(c_proj.get("current_role_index") or 65.0, 1),
+                    "subrole": c_proj.get("subrole") or POS_NAME[r_cand["position"]],
+                    "recommended_years": c_cont.get("recommended_years") or "4 Years",
+                    "shared_labels": r_cand.get("shared_labels", [])[:2],
+                })
+
+            vulnerabilities.append({
+                "starter": p,
+                "priority": "High" if urg >= 30 else ("Medium" if urg >= 15 else "Watchlist"),
+                "reasons": reasons,
+                "replacements": enriched_recs,
+            })
+
+        formation_str = f"{len(xi_def)}-{len(xi_mid)}-{len(xi_att)}"
+        return {
+            "club": club,
+            "formation": formation_str,
+            "n_players": len(roster),
+            "team_strength": _f(float(sub["team_strength"].iloc[0]), 2),
+            "best_xi_est_eur": _f(best_xi_est),
+            "best_xi_mkt_eur": _f(best_xi_mkt),
+            "best_xi_gap_pct": _f((best_xi_est / best_xi_mkt - 1.0) * 100.0 if best_xi_mkt > 0 else 0.0, 1),
+            "total_est_eur": _f(total_est),
+            "total_mkt_eur": _f(total_mkt),
+            "total_gap_pct": _f((total_est / total_mkt - 1.0) * 100.0 if total_mkt > 0 else 0.0, 1),
+            "avg_age": _f(avg_age, 1),
+            "best_xi_avg_age": _f(xi_avg_age, 1),
+            "best_xi_avg_role_index": _f(xi_avg_role, 1),
+            "pitch": {
+                "gk": xi_gk,
+                "def": xi_def,
+                "mid": xi_mid,
+                "att": xi_att,
+            },
+            "starters": starters,
+            "bench": bench,
+            "vulnerabilities": vulnerabilities,
+        }
 
     # ------------------------------------------------------------------ data quality
     def find_excluded(self, q: str) -> list[dict]:

@@ -131,3 +131,79 @@ export function StatPill({ value, label, color }) {
     </div>
   )
 }
+
+/** Range slider with vertical | tick marks at 10, 20, 30, ... intervals */
+export function RangeSlider({
+  id,
+  min,
+  max,
+  step = 1,
+  value,
+  onChange,
+  tickStep = 10,
+  labelStep,
+  formatTick,
+  ariaLabel,
+  style,
+  className = '',
+}) {
+  const numVal = Number(value)
+  const span = Math.max(max - min, 1e-9)
+  const fillPct = Math.max(0, Math.min(100, ((numVal - min) / span) * 100))
+
+  const ticks = []
+  if (tickStep > 0) {
+    const first = Math.ceil(min / tickStep) * tickStep
+    for (let t = first; t <= max + 1e-9; t = Math.round((t + tickStep) * 1e6) / 1e6) {
+      if (t >= min - 1e-9 && t <= max + 1e-9) ticks.push(t)
+    }
+  }
+
+  const resolvedLabelStep = labelStep ?? (
+    ticks.length <= 11 ? tickStep : ticks.length <= 22 ? tickStep * 2 : tickStep * 5
+  )
+
+  return (
+    <div className={`range-slider-wrap ${className}`.trim()} style={style}>
+      <input
+        id={id}
+        type="range"
+        className="range-slider-input"
+        min={min}
+        max={max}
+        step={step}
+        value={numVal}
+        aria-label={ariaLabel}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{
+          background: `linear-gradient(to right, var(--c-primary) 0%, var(--c-primary) ${fillPct}%, rgba(255,255,255,0.16) ${fillPct}%, rgba(255,255,255,0.16) 100%)`,
+        }}
+      />
+      {ticks.length > 0 && (
+        <div className="range-slider-ticks" aria-hidden="true">
+          {ticks.map(t => {
+            const pct = ((t - min) / span) * 100
+            const showLabel = Math.abs(t % resolvedLabelStep) < 1e-6
+            const isActive = Math.abs(numVal - t) < 1e-6
+            return (
+              <span
+                key={t}
+                className={`range-slider-tick${showLabel ? ' is-major' : ''}${isActive ? ' is-active' : ''}`}
+                style={{ left: `${pct}%` }}
+                onClick={() => onChange(t)}
+                title={formatTick ? formatTick(t) : String(t)}
+              >
+                <span className="range-slider-tick-bar" />
+                {showLabel && (
+                  <span className="range-slider-tick-label">
+                    {formatTick ? formatTick(t) : t}
+                  </span>
+                )}
+              </span>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}

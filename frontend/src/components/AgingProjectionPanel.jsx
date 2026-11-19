@@ -1,7 +1,25 @@
+import { useEffect, useState } from 'react'
 import { fmtValue } from '../utils'
-import { IconTarget, IconClipboard, IconAlert, IconTrendDown } from './Icons'
+import { IconTarget, IconClipboard, IconAlert, IconTrendDown, IconContract } from './Icons'
+import { RangeSlider } from './UI'
 
 export default function AgingProjectionPanel({ projection }) {
+  const defaultBidM = projection?.current_value_eur ? Math.max(0.5, Math.round((projection.current_value_eur / 1e6) * 2) / 2) : 25
+  const defaultYears = (() => {
+    const m = String(projection?.contract?.recommended_years || '').match(/\d+/)
+    return m ? Math.min(5, Math.max(1, Number(m[0]))) : 3
+  })()
+
+  const [bidM, setBidM] = useState(defaultBidM)
+  const [dealYears, setDealYears] = useState(defaultYears)
+
+  useEffect(() => {
+    if (!projection) return
+    setBidM(Math.max(0.5, Math.round(((projection.current_value_eur || 25e6) / 1e6) * 2) / 2))
+    const m = String(projection?.contract?.recommended_years || '').match(/\d+/)
+    setDealYears(m ? Math.min(5, Math.max(1, Number(m[0]))) : 3)
+  }, [projection?.name])
+
   if (!projection) {
     return (
       <div className="card">
@@ -161,6 +179,125 @@ export default function AgingProjectionPanel({ projection }) {
           })}
         </div>
       </div>
+
+      {/* ── Transfer Deal & FFP/PSR Amortisation Calculator ───────────────── */}
+      {(() => {
+        const bidEur = bidM * 1e6
+        const fairEur = current_value_eur || 1e6
+        const ratio = bidEur / fairEur
+        const verdict = ratio <= 0.85
+          ? { label: 'Bargain Deal', cls: 'badge-green', color: 'var(--c-green)' }
+          : ratio <= 1.15
+            ? { label: 'Fair Market Bid', cls: 'badge-blue', color: 'var(--c-primary)' }
+            : { label: 'Overpay Warning', cls: 'badge-red', color: 'var(--c-red)' }
+        const annualAmort = bidEur / Math.max(1, dealYears)
+        const y3Resale = future?.[2]?.estimated_value_eur ?? fairEur * 0.65
+        const net3yCost = bidEur - y3Resale
+        const sliderMax = Math.max(80, Math.ceil((fairEur / 1e6) * 2.2 / 5) * 5)
+        return (
+          <div className="card mb-24 no-print" style={{ padding: '24px 28px' }}>
+            <div className="flex justify-between items-start wrap gap-12 mb-16">
+              <div>
+                <h3 className="flex items-center gap-8" style={{ marginBottom: 4 }}>
+                  <IconContract size={19} style={{ color: 'var(--c-primary)' }} /> Transfer Deal &amp; FFP/PSR Amortisation Calculator
+                </h3>
+                <p className="text-muted" style={{ fontSize: '0.84rem', margin: 0 }}>
+                  Simulate a proposed transfer bid and contract length to evaluate annual PSR book amortisation and net 3-year resale ROI.
+                </p>
+              </div>
+              <span className={`badge ${verdict.cls}`} style={{ fontSize: '0.8rem', padding: '5px 12px' }}>
+                {verdict.label} ({ratio >= 1 ? '+' : ''}{((ratio - 1) * 100).toFixed(0)}% vs fair value)
+              </span>
+            </div>
+
+            <div className="grid-2 mb-20" style={{ gap: 20, alignItems: 'center' }}>
+              <div>
+                <div className="flex justify-between items-center mb-8">
+                  <label className="label" htmlFor="psr-bid-slider">Proposed Transfer Bid</label>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '1.05rem', color: 'var(--c-primary)' }}>
+                    £{bidM.toFixed(1)}m
+                  </span>
+                </div>
+                <RangeSlider
+                  id="psr-bid-slider"
+                  min={0.5}
+                  max={sliderMax}
+                  step={0.5}
+                  value={bidM}
+                  onChange={setBidM}
+                  tickStep={10}
+                  formatTick={v => `£${v}m`}
+                  ariaLabel={`Proposed transfer bid £${bidM.toFixed(1)}m`}
+                />
+                <div className="flex justify-between text-subtle" style={{ fontSize: '0.72rem', marginTop: 4 }}>
+                  <span>£0.5m</span>
+                  <span>Model Fair Value: {fmtValue(fairEur)}</span>
+                  <span>£{sliderMax}m</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="label mb-8">Contract Length (PSR Amortisation Window)</div>
+                <div className="flex gap-8 wrap">
+                  {[1, 2, 3, 4, 5].map(yr => (
+                    <button
+                      key={yr}
+                      type="button"
+                      className={`btn btn-sm ${dealYears === yr ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setDealYears(yr)}
+                      style={{ flex: '1 1 56px', justifyContent: 'center' }}
+                    >
+                      {yr} {yr === 1 ? 'Yr' : 'Yrs'}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-subtle" style={{ fontSize: '0.74rem', marginTop: 6 }}>
+                  Advisor recommends: <strong style={{ color: 'var(--c-text)' }}>{contract.recommended_years || `${defaultYears} Years`}</strong> (UEFA/EPL max amortisation cap = 5 years)
+                </div>
+              </div>
+            </div>
+
+            <div className="grid-4" style={{ gap: 12 }}>
+              <div style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--c-border)' }}>
+                <div className="label mb-4">Annual PSR Amortisation</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--c-accent)', fontFamily: 'var(--font-mono)' }}>
+                  {fmtValue(annualAmort)}<span style={{ fontSize: '0.74rem', fontWeight: 500, color: 'var(--c-muted)' }}> /yr</span>
+                </div>
+                <div className="text-subtle" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+                  Book cost across {dealYears} {dealYears === 1 ? 'season' : 'seasons'}
+                </div>
+              </div>
+              <div style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--c-border)' }}>
+                <div className="label mb-4">Bid vs. Fair Value</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: verdict.color, fontFamily: 'var(--font-mono)' }}>
+                  {bidEur <= fairEur ? '−' : '+'}{fmtValue(Math.abs(bidEur - fairEur))}
+                </div>
+                <div className="text-subtle" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+                  {bidEur <= fairEur ? 'Discount to model value' : 'Premium over model value'}
+                </div>
+              </div>
+              <div style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--c-border)' }}>
+                <div className="label mb-4">Projected 2029 Resale</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--c-text)', fontFamily: 'var(--font-mono)' }}>
+                  {fmtValue(y3Resale)}
+                </div>
+                <div className="text-subtle" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+                  Expected value at Age {current_age + 3}
+                </div>
+              </div>
+              <div style={{ background: 'var(--c-surface)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--c-border)' }}>
+                <div className="label mb-4">Net 3-Year Capital Cost</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 800, color: net3yCost <= 0 ? 'var(--c-green)' : 'var(--c-text)', fontFamily: 'var(--font-mono)' }}>
+                  {net3yCost <= 0 ? `+${fmtValue(Math.abs(net3yCost))} profit` : fmtValue(net3yCost)}
+                </div>
+                <div className="text-subtle" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+                  Transfer fee minus 2029 resale
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Visual Trajectory Chart (Historical + 3-Year Forecast) ────────── */}
       <div className="card mb-24" style={{ padding: '26px 28px' }}>

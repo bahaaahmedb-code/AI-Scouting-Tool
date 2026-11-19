@@ -8,9 +8,11 @@ import Scout from './pages/Scout'
 import Compare from './pages/Compare'
 import Rankings from './pages/Rankings'
 import Dashboard from './pages/Dashboard'
+import SquadAudit from './pages/SquadAudit'
 import Chat from './pages/Chat'
 import About from './pages/About'
 import Eval from './pages/Eval'
+import { IconBall } from './components/Icons'
 
 export default function App() {
   return (
@@ -20,6 +22,7 @@ export default function App() {
         <Route path="/"            element={<Home />} />
         <Route path="/players"     element={<Players />} />
         <Route path="/players/:pid" element={<PlayerProfile />} />
+        <Route path="/squad"       element={<SquadAudit />} />
         <Route path="/scout"       element={<Scout />} />
         <Route path="/compare"     element={<Compare />} />
         <Route path="/rankings"    element={<Rankings />} />
@@ -47,7 +50,7 @@ export default function App() {
 function NotFound() {
   return (
     <div style={{ textAlign: 'center', padding: '120px 24px' }}>
-      <div style={{ fontSize: '4rem', marginBottom: 16 }}>⚽</div>
+      <div style={{ marginBottom: 16, color: 'var(--c-primary)' }}><IconBall size={48} /></div>
       <h2 style={{ marginBottom: 12 }}>Page not found</h2>
       <p style={{ color: 'var(--c-muted)', marginBottom: 24 }}>That page is offside.</p>
       <a href="/" className="btn btn-primary">← Back to Home</a>

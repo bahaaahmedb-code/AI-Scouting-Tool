@@ -39,6 +39,10 @@ export const getRadar = (ids) =>
 export const getRankings = (params = {}) =>
   api.get('/rankings', { params }).then(r => r.data)
 
+// ── Club Squad Audit ──────────────────────────────────────────────────────────
+export const getClubAudit = (club, maxPct = 90) =>
+  api.get('/clubs/audit', { params: { club, max_pct: maxPct } }).then(r => r.data)
+
 // ── What-if ───────────────────────────────────────────────────────────────────
 export const postWhatIf = (body) =>
   api.post('/whatif', body).then(r => r.data)
