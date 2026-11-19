@@ -12,6 +12,7 @@ export default function AgingProjectionPanel({ projection }) {
 
   const [bidM, setBidM] = useState(defaultBidM)
   const [dealYears, setDealYears] = useState(defaultYears)
+  const [showBacktest, setShowBacktest] = useState(true)
 
   useEffect(() => {
     if (!projection) return
@@ -43,6 +44,8 @@ export default function AgingProjectionPanel({ projection }) {
     timeline = [],
     future = [],
     contract = {},
+    backtest = null,
+    league_backtest = null,
   } = projection
 
   const badgeClass =
@@ -63,7 +66,24 @@ export default function AgingProjectionPanel({ projection }) {
   const nPts = timeline.length
   const xAt = (idx) => padL + (nPts > 1 ? (idx / (nPts - 1)) * innerW : innerW / 2)
 
-  const roleVals = timeline.map(t => Number(t.role_index || 50))
+  const hasBacktest = Boolean(backtest?.points?.length > 1)
+  const btMapByYear = {}
+  if (hasBacktest) {
+    backtest.points.forEach(bp => { btMapByYear[bp.season_end_year] = bp })
+  }
+  const btChartPts = hasBacktest
+    ? timeline
+        .map((t, idx) => {
+          const bp = btMapByYear[t.season_end_year]
+          return bp ? { ...bp, idx } : null
+        })
+        .filter(Boolean)
+    : []
+
+  const roleVals = [
+    ...timeline.map(t => Number(t.role_index || 50)),
+    ...(showBacktest ? btChartPts.map(b => Number(b.predicted_role_index || 50)) : []),
+  ]
   const minRole = Math.max(10, Math.floor((Math.min(...roleVals) - 10) / 5) * 5)
   const maxRole = Math.min(100, Math.ceil((Math.max(...roleVals) + 8) / 5) * 5)
   const yRole = (v) => padT + innerH - ((v - minRole) / Math.max(1, maxRole - minRole)) * innerH
@@ -308,7 +328,7 @@ export default function AgingProjectionPanel({ projection }) {
               Solid line = verified historical Opta/FBref seasons · Dashed line = projected trajectory based on last 3 seasons + Premier League {position_name.toLowerCase()} aging curve
             </p>
           </div>
-          <div className="flex gap-12 wrap" style={{ fontSize: '0.8rem', marginTop: 4 }}>
+          <div className="flex gap-10 wrap items-center" style={{ fontSize: '0.8rem', marginTop: 4, alignSelf: 'flex-start' }}>
             <span className="flex items-center gap-8" style={{
               padding: '6px 12px', borderRadius: 999,
               background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.28)',
@@ -325,6 +345,26 @@ export default function AgingProjectionPanel({ projection }) {
               <span style={{ width: 16, height: 0, borderBottom: '3px dashed #c8f542', display: 'inline-block' }} />
               <span>Projected (Age +1 to +3)</span>
             </span>
+            {hasBacktest && (
+              <button
+                type="button"
+                onClick={() => setShowBacktest(v => !v)}
+                className="flex items-center gap-8"
+                style={{
+                  padding: '6px 12px', borderRadius: 999,
+                  background: showBacktest ? 'rgba(251, 191, 36, 0.14)' : 'rgba(255, 255, 255, 0.04)',
+                  border: showBacktest ? '1px solid rgba(251, 191, 36, 0.55)' : '1px solid var(--c-border)',
+                  color: showBacktest ? '#fde68a' : 'var(--c-muted)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                aria-pressed={showBacktest}
+                title="Toggle leak-free historical backtest (predicted from earliest season without seeing 2023-26)"
+              >
+                <span style={{ width: 16, height: 0, borderBottom: '2.5px dotted #fbbf24', display: 'inline-block' }} />
+                <span>{showBacktest ? 'Hide' : 'Show'} Backtest (2023–26)</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -380,6 +420,41 @@ export default function AgingProjectionPanel({ projection }) {
                 strokeDasharray="6,5"
                 points={polyPoints(futPts, curIdx)}
               />
+            )}
+
+            {/* Leak-free Historical Backtest dotted polyline (2023-26 predicted from earliest season) */}
+            {showBacktest && btChartPts.length > 1 && (
+              <g>
+                <polyline
+                  fill="none"
+                  stroke="#fbbf24"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="3,4"
+                  opacity="0.92"
+                  points={btChartPts.map(b => `${xAt(b.idx).toFixed(1)},${yRole(b.predicted_role_index).toFixed(1)}`).join(' ')}
+                />
+                {btChartPts.filter(b => b.horizon > 0).map(b => {
+                  const bx = xAt(b.idx)
+                  const by = yRole(b.predicted_role_index)
+                  return (
+                    <circle
+                      key={`bt-${b.season}`}
+                      cx={bx}
+                      cy={by}
+                      r="4.5"
+                      fill="#09130e"
+                      stroke="#fbbf24"
+                      strokeWidth="2.2"
+                    >
+                      <title>
+                        {`${b.season} Backtest Hindcast: ${b.predicted_role_index} vs Actual: ${b.actual_role_index ?? '—'}${b.error_pts != null ? ` (${b.error_pts >= 0 ? '+' : ''}${b.error_pts} pts)` : ''}`}
+                      </title>
+                    </circle>
+                  )
+                })}
+              </g>
             )}
 
             {/* Points & Pill Labels (rendered after polylines so lines never cut through text) */}
@@ -451,6 +526,33 @@ export default function AgingProjectionPanel({ projection }) {
             })}
           </svg>
         </div>
+
+        {/* Leak-free Backtest Validation Summary Strip */}
+        {hasBacktest && showBacktest && (
+          <div
+            className="flex justify-between items-center wrap gap-12 mt-16"
+            style={{
+              background: 'rgba(251, 191, 36, 0.06)',
+              border: '1px solid rgba(251, 191, 36, 0.28)',
+              borderRadius: 10,
+              padding: '10px 14px',
+              fontSize: '0.8rem',
+            }}
+          >
+            <div style={{ color: 'var(--c-text)' }}>
+              <strong style={{ color: '#fde68a' }}>Leak-Free Backtest ({backtest.anchor_season} → 2025-26):</strong>{' '}
+              {name}&apos;s blind hindcast MAE is{' '}
+              <strong style={{ fontFamily: 'var(--font-mono)', color: '#fde68a' }}>±{backtest.mae_pts} pts</strong>{' '}
+              across {backtest.n_eval_seasons} {backtest.n_eval_seasons === 1 ? 'season' : 'seasons'}{' '}
+              <span className="text-muted">(hover amber rings for season-by-season error)</span>.
+            </div>
+            {league_backtest && (
+              <div className="text-muted" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.74rem' }}>
+                EPL Out-of-Sample ({league_backtest.n_players} players): 1Y ±{league_backtest.mae_1y} · 2Y ±{league_backtest.mae_2y} · 3Y ±{league_backtest.mae_3y} pts · r = {league_backtest.correlation_r}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Season-by-Season Detailed Stat & Valuation Table ──────────────── */}

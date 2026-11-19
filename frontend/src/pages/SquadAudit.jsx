@@ -7,28 +7,33 @@ import { ShortlistBtn } from '../components/ShortlistDrawer'
 import { IconStadium, IconTarget, IconAlert, IconShield, IconScale } from '../components/Icons'
 
 function PitchPlayerCard({ player }) {
-  const isAging = player.age >= 31
-  const isLowRole = (player.role_index ?? 70) < 65
-  const borderCol = isAging
-    ? 'rgba(251, 191, 36, 0.55)'
-    : isLowRole
-      ? 'rgba(244, 63, 94, 0.45)'
-      : 'rgba(200, 245, 66, 0.28)'
+  const status = player.pitch_status || (
+    player.age >= 31 ? 'succession' : ((player.role_index ?? 70) < 65 ? 'upgrade' : 'core')
+  )
+  const palette = {
+    core:       { border: 'rgba(34, 197, 94, 0.85)',  glow: 'rgba(34, 197, 94, 0.22)' },
+    developing: { border: 'rgba(56, 189, 248, 0.85)', glow: 'rgba(56, 189, 248, 0.22)' },
+    succession: { border: 'rgba(251, 191, 36, 0.85)', glow: 'rgba(251, 191, 36, 0.22)' },
+    upgrade:    { border: 'rgba(244, 63, 94, 0.85)',  glow: 'rgba(244, 63, 94, 0.22)' },
+  }[status] || { border: 'rgba(34, 197, 94, 0.85)', glow: 'rgba(34, 197, 94, 0.22)' }
+  const isAging = status === 'succession'
+  const borderCol = palette.border
+  const glowCol = palette.glow
 
   return (
     <Link
       to={`/players/${player.id}`}
       style={{
-        background: 'rgba(9, 20, 14, 0.90)',
+        background: 'rgba(9, 20, 14, 0.92)',
         backdropFilter: 'blur(6px)',
-        border: `1px solid ${borderCol}`,
+        border: `1.5px solid ${borderCol}`,
         borderRadius: 10,
         padding: '10px 12px',
         minWidth: 132,
         maxWidth: 168,
         flex: '0 1 154px',
         textAlign: 'center',
-        boxShadow: '0 8px 20px rgba(0,0,0,0.45)',
+        boxShadow: `0 8px 20px rgba(0,0,0,0.45), 0 0 12px ${glowCol}`,
         transition: 'transform 0.18s ease, border-color 0.18s ease',
         display: 'flex',
         flexDirection: 'column',
@@ -65,11 +70,172 @@ function PitchPlayerCard({ player }) {
   )
 }
 
+function VulnerabilityCard({ v, idx }) {
+  const st = v.starter
+  const stEst = Math.max(st.estimated_value_eur || 1e6, 1e5)
+  const pool = v.replacement_pool ?? v.replacements ?? []
+
+  // Compute an appropriate % range for this starter (handles both prime £40m+ starters and depreciated £5m-£15m veterans)
+  const pcts = pool.map(r => r.pct_of_starter ?? ((r.estimated_value_eur || 0) / stEst) * 100)
+  const topSixMax = pcts.length ? Math.max(...pcts.slice(0, 6)) : 150
+  const maxPct = topSixMax <= 150
+    ? 150
+    : Math.min(900, Math.max(200, Math.ceil(topSixMax / 50) * 50))
+  const minPct = maxPct <= 250 ? 50 : 100
+  const step = maxPct <= 250 ? 5 : 10
+  const tickStep = maxPct <= 160 ? 10 : maxPct <= 260 ? 20 : maxPct <= 500 ? 50 : 100
+
+  // Default to the lowest cap (at least 90%) that shows 3 positive-fit replacements
+  const sortedPcts = [...pcts].sort((a, b) => a - b)
+  const thirdPct = sortedPcts.length >= 3 ? sortedPcts[2] : (sortedPcts[sortedPcts.length - 1] ?? 100)
+  const initialPct = Math.min(maxPct, Math.max(minPct, Math.ceil(Math.max(90, thirdPct) / step) * step))
+
+  const [capPct, setCapPct] = useState(initialPct)
+
+  useEffect(() => {
+    setCapPct(initialPct)
+  }, [st.id, initialPct])
+
+  const capEur = stEst * (capPct / 100)
+  const matching = pool.filter(r => (r.estimated_value_eur || 0) <= capEur + 1)
+  const shown = matching.slice(0, 3)
+  const prioCls = v.priority === 'High' ? 'badge-red' : v.priority === 'Medium' ? 'badge-amber' : 'badge-blue'
+
+  return (
+    <div className="card" style={{ padding: '22px 24px' }}>
+      <div className="flex justify-between items-start wrap gap-12 mb-16">
+        <div>
+          <div className="flex items-center gap-10 wrap mb-6">
+            <span className={`badge ${prioCls}`}>
+              <IconAlert size={12} /> {v.category || `${v.priority} Priority`} #{idx + 1}
+            </span>
+            <PosChip pos={st.position} />
+            <Link to={`/players/${st.id}`} style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--c-text)' }}>
+              {st.name}
+            </Link>
+            <span className="text-muted" style={{ fontSize: '0.85rem' }}>
+              Age {st.age} · {st.subrole} · Role Index {st.role_index}/100
+            </span>
+          </div>
+          <div className="flex gap-8 wrap">
+            {v.reasons.map((r, ri) => (
+              <span key={ri} style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>
+                • {r}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div className="label">Current Starter Est.</div>
+          <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--c-accent)', fontFamily: 'var(--font-mono)' }}>
+            {fmtValue(st.estimated_value_eur)}
+          </div>
+          <div className="text-subtle" style={{ fontSize: '0.75rem' }}>
+            Contract Rec: {st.recommended_years}
+          </div>
+        </div>
+      </div>
+
+      {/* Per-player Replacement Budget Cap (% of starter value) */}
+      <div style={{
+        background: 'var(--c-surface)',
+        border: '1px solid var(--c-border)',
+        borderRadius: 10,
+        padding: '12px 16px',
+        marginBottom: 16,
+      }}>
+        <div className="flex justify-between items-center wrap gap-8 mb-6">
+          <label className="label" htmlFor={`audit-cap-${st.id}`} style={{ margin: 0 }}>
+            Replacement Budget Cap:{' '}
+            <strong style={{ color: 'var(--c-primary)' }}>{capPct}%</strong> of Starter Value{' '}
+            <span style={{ color: 'var(--c-accent)', fontFamily: 'var(--font-mono)' }}>({fmtValue(capEur)})</span>
+          </label>
+          <span className="text-subtle" style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+            {matching.length} positive-fit {matching.length === 1 ? 'match' : 'matches'} under cap
+          </span>
+        </div>
+        <RangeSlider
+          id={`audit-cap-${st.id}`}
+          min={minPct}
+          max={maxPct}
+          step={step}
+          value={capPct}
+          onChange={setCapPct}
+          tickStep={tickStep}
+          formatTick={val => `${val}%`}
+          ariaLabel={`Replacement budget cap for ${st.name}: ${capPct}% of starter value`}
+        />
+      </div>
+
+      {shown.length > 0 ? (
+        <div className="grid-3" style={{ gap: 14 }}>
+          {shown.map(rec => (
+            <div
+              key={rec.id}
+              style={{
+                background: 'var(--c-surface)',
+                border: '1px solid var(--c-border)',
+                borderRadius: 10,
+                padding: '14px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: 10,
+              }}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-8 mb-6">
+                  <Link to={`/players/${rec.id}`} style={{ fontWeight: 700, color: 'var(--c-primary)', fontSize: '0.95rem' }}>
+                    {rec.name}
+                  </Link>
+                  <span className="badge badge-green" style={{ fontSize: '0.7rem' }}>
+                    {(rec.similarity * 100).toFixed(0)}% fit
+                  </span>
+                </div>
+                <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: 8 }}>
+                  {rec.club} · Age <strong>{rec.age}</strong> · Role Index <strong>{rec.role_index}/100</strong>
+                </div>
+                <div className="flex items-center justify-between" style={{ fontSize: '0.82rem', marginBottom: 6 }}>
+                  <span className="text-muted">Model Est:</span>
+                  <strong style={{ color: 'var(--c-accent)', fontFamily: 'var(--font-mono)' }}>
+                    {fmtValue(rec.estimated_value_eur)}
+                  </strong>
+                </div>
+                <div className="flex items-center justify-between" style={{ fontSize: '0.8rem', marginBottom: 8 }}>
+                  <span className="text-muted">Ideal Contract:</span>
+                  <strong style={{ color: 'var(--c-text)' }}>{rec.recommended_years}</strong>
+                </div>
+                {rec.shared_labels?.length > 0 && (
+                  <div className="flex gap-4 wrap">
+                    {rec.shared_labels.map((s, si) => (
+                      <span key={si} className="badge badge-gray" style={{ fontSize: '0.68rem' }}>{s}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-8 pt-8" style={{ borderTop: '1px solid var(--c-border)', paddingTop: 10 }}>
+                <ShortlistBtn player={rec} />
+                <Link to={`/compare?ids=${st.id},${rec.id}`} className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', fontSize: '0.78rem' }}>
+                  <IconScale size={13} /> Compare
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-muted" style={{ fontSize: '0.85rem' }}>
+          No positive-fit external replacements found under {capPct}% ({fmtValue(capEur)}). Slide the budget cap above higher to view candidates.
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function SquadAudit() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [clubs, setClubs] = useState([])
   const [club, setClub] = useState(searchParams.get('club') || 'Liverpool')
-  const [maxPct, setMaxPct] = useState(90)
   const [audit, setAudit] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -88,10 +254,10 @@ export default function SquadAudit() {
     if (!club) return
     setLoading(true)
     setError(null)
-    getClubAudit(club, maxPct)
+    getClubAudit(club)
       .then(d => { setAudit(d); setLoading(false) })
       .catch(e => { setError(e.response?.data?.detail || e.message); setLoading(false) })
-  }, [club, maxPct])
+  }, [club])
 
   function changeClub(nextClub) {
     setClub(nextClub)
@@ -113,7 +279,7 @@ export default function SquadAudit() {
         {/* ── Controls ────────────────────────────────────────── */}
         <div className="card mb-24" style={{ padding: '20px 24px' }}>
           <div className="flex gap-32 wrap items-center">
-            <div style={{ flex: '1 1 240px', maxWidth: 320 }}>
+            <div style={{ flex: '1 1 240px', maxWidth: 340 }}>
               <label className="label mb-8" htmlFor="audit-club-select" style={{ display: 'block' }}>Select Premier League Club</label>
               <select
                 id="audit-club-select"
@@ -123,22 +289,6 @@ export default function SquadAudit() {
               >
                 {clubs.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-            </div>
-            <div style={{ flex: '1 1 300px', maxWidth: 440 }}>
-              <label className="label mb-8" htmlFor="audit-max-pct" style={{ display: 'block' }}>
-                Replacement Budget Cap: <strong style={{ color: 'var(--c-primary)' }}>{maxPct}%</strong> of Starter Value
-              </label>
-              <RangeSlider
-                id="audit-max-pct"
-                min={50}
-                max={150}
-                step={5}
-                value={maxPct}
-                onChange={setMaxPct}
-                tickStep={10}
-                formatTick={v => `${v}%`}
-                ariaLabel={`Replacement budget cap ${maxPct}% of starter value`}
-              />
             </div>
             {audit && (
               <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
@@ -196,15 +346,135 @@ export default function SquadAudit() {
               </div>
             </div>
 
+            {/* ── 2025-26 Team Unit Diagnostics (Season Output × 3Y Aging) ── */}
+            {audit.team_diagnostics?.length > 0 && (
+              <div className="card mb-24" style={{ padding: '22px 24px' }}>
+                <div className="mb-16">
+                  <h3 style={{ marginBottom: 4 }}>2025-26 Team Unit Diagnostics (Season Performance × 3-Year Aging)</h3>
+                  <p className="text-muted" style={{ fontSize: '0.84rem', margin: 0 }}>
+                    Ranks {audit.club}&apos;s Attack, Midfield, and Defense against all 20 Premier League clubs and cross-checks weak units with the aging model to decide whether to recruit or develop internally.
+                  </p>
+                </div>
+                <div className="grid-3" style={{ gap: 16 }}>
+                  {audit.team_diagnostics.map(u => {
+                    const badgeCls =
+                      u.badge === 'green' ? 'badge-green'
+                        : u.badge === 'red' ? 'badge-red'
+                          : u.badge === 'amber' ? 'badge-amber'
+                            : 'badge-blue'
+                    const borderAccent =
+                      u.badge === 'green' ? 'rgba(34, 197, 94, 0.35)'
+                        : u.badge === 'red' ? 'rgba(244, 63, 94, 0.45)'
+                          : u.badge === 'amber' ? 'rgba(251, 191, 36, 0.40)'
+                            : 'rgba(56, 189, 248, 0.40)'
+                    return (
+                      <div
+                        key={u.unit}
+                        style={{
+                          background: 'var(--c-surface)',
+                          border: `1px solid ${borderAccent}`,
+                          borderRadius: 12,
+                          padding: '16px 18px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: 10,
+                        }}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-8 mb-8">
+                            <span style={{ fontWeight: 700, fontSize: '0.98rem', color: 'var(--c-text)' }}>{u.title}</span>
+                            <span
+                              style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                color: u.epl_rank <= 7 ? '#86efac' : u.epl_rank >= 13 ? '#fda4af' : 'var(--c-muted)',
+                              }}
+                            >
+                              #{u.epl_rank} / {u.n_clubs} EPL
+                            </span>
+                          </div>
+
+                          <div className="mb-10">
+                            <span className={`badge ${badgeCls}`} style={{ fontSize: '0.72rem' }}>
+                              {u.verdict}
+                            </span>
+                          </div>
+
+                          <div
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: '0.78rem',
+                              color: 'var(--c-text)',
+                              marginBottom: 8,
+                            }}
+                          >
+                            {u.stat_line}
+                          </div>
+
+                          <div className="text-muted" style={{ fontSize: '0.78rem', marginBottom: 8 }}>
+                            Starters Avg Age <strong>{u.avg_age}y</strong> · 3Y Role{' '}
+                            <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--c-text)' }}>
+                              {u.role_now} → {u.role_y3}
+                            </strong>{' '}
+                            <span style={{ color: u.delta_3y >= 0 ? '#86efac' : '#fda4af', fontWeight: 700 }}>
+                              ({u.delta_3y >= 0 ? '+' : ''}{u.delta_3y})
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-muted" style={{ fontSize: '0.8rem', lineHeight: 1.45, margin: 0, paddingTop: 8, borderTop: '1px solid var(--c-border)' }}>
+                          {u.note}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* ── Floodlit Football Pitch (Best XI) ────────────── */}
             <div className="card mb-24" style={{ padding: '24px 26px' }}>
-              <div className="flex justify-between items-center wrap gap-12 mb-16">
+              <div className="flex justify-between items-center wrap gap-12 mb-12">
                 <div>
                   <h3 style={{ marginBottom: 4 }}>{audit.club} — Best XI Tactical Pitch ({audit.formation})</h3>
                   <p className="text-muted" style={{ fontSize: '0.84rem', margin: 0 }}>
-                    Top 11 qualified starters ranked by Role Performance Index &amp; playing time. Gold border = age 31+ succession watch; click any player to open profile.
+                    Top 11 qualified starters ranked by Role Performance Index &amp; playing time. Click any player to open their full profile.
                   </p>
                 </div>
+              </div>
+
+              {/* Border color legend */}
+              <div className="flex gap-10 wrap items-center mb-16" style={{ fontSize: '0.78rem' }}>
+                <span className="flex items-center gap-6" style={{
+                  padding: '4px 10px', borderRadius: 999,
+                  background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.65)', color: '#86efac',
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                  Core Prime Starter
+                </span>
+                <span className="flex items-center gap-6" style={{
+                  padding: '4px 10px', borderRadius: 999,
+                  background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.65)', color: '#7dd3fc',
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#38bdf8', display: 'inline-block' }} />
+                  Young Developing (Projected to Improve 3Y)
+                </span>
+                <span className="flex items-center gap-6" style={{
+                  padding: '4px 10px', borderRadius: 999,
+                  background: 'rgba(251, 191, 36, 0.12)', border: '1px solid rgba(251, 191, 36, 0.65)', color: '#fde68a',
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
+                  Succession Watch (Age 31+ / 3Y Decline)
+                </span>
+                <span className="flex items-center gap-6" style={{
+                  padding: '4px 10px', borderRadius: 999,
+                  background: 'rgba(244, 63, 94, 0.12)', border: '1px solid rgba(244, 63, 94, 0.65)', color: '#fda4af',
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f43f5e', display: 'inline-block' }} />
+                  Upgrade Target (Below Position 3Y Benchmark)
+                </span>
               </div>
 
               <div
@@ -291,108 +561,22 @@ export default function SquadAudit() {
               </p>
             </div>
 
-            <div className="flex-col gap-20">
-              {(audit.vulnerabilities || []).map((v, idx) => {
-                const st = v.starter
-                const prioCls = v.priority === 'High' ? 'badge-red' : v.priority === 'Medium' ? 'badge-amber' : 'badge-blue'
-                return (
-                  <div key={st.id} className="card" style={{ padding: '22px 24px' }}>
-                    <div className="flex justify-between items-start wrap gap-12 mb-16">
-                      <div>
-                        <div className="flex items-center gap-10 wrap mb-6">
-                          <span className={`badge ${prioCls}`}>
-                            <IconAlert size={12} /> {v.priority} Priority #{idx + 1}
-                          </span>
-                          <PosChip pos={st.position} />
-                          <Link to={`/players/${st.id}`} style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--c-text)' }}>
-                            {st.name}
-                          </Link>
-                          <span className="text-muted" style={{ fontSize: '0.85rem' }}>
-                            Age {st.age} · {st.subrole} · Role Index {st.role_index}/100
-                          </span>
-                        </div>
-                        <div className="flex gap-8 wrap">
-                          {v.reasons.map((r, ri) => (
-                            <span key={ri} style={{ fontSize: '0.82rem', color: 'var(--c-muted)' }}>
-                              • {r}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div className="label">Current Starter Est.</div>
-                        <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--c-accent)', fontFamily: 'var(--font-mono)' }}>
-                          {fmtValue(st.estimated_value_eur)}
-                        </div>
-                        <div className="text-subtle" style={{ fontSize: '0.75rem' }}>
-                          Contract Rec: {st.recommended_years}
-                        </div>
-                      </div>
-                    </div>
-
-                    {v.replacements?.length > 0 ? (
-                      <div className="grid-3" style={{ gap: 14 }}>
-                        {v.replacements.map(rec => (
-                          <div
-                            key={rec.id}
-                            style={{
-                              background: 'var(--c-surface)',
-                              border: '1px solid var(--c-border)',
-                              borderRadius: 10,
-                              padding: '14px 16px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'space-between',
-                              gap: 10,
-                            }}
-                          >
-                            <div>
-                              <div className="flex items-center justify-between gap-8 mb-6">
-                                <Link to={`/players/${rec.id}`} style={{ fontWeight: 700, color: 'var(--c-primary)', fontSize: '0.95rem' }}>
-                                  {rec.name}
-                                </Link>
-                                <span className="badge badge-green" style={{ fontSize: '0.7rem' }}>
-                                  {(rec.similarity * 100).toFixed(0)}% fit
-                                </span>
-                              </div>
-                              <div className="text-muted" style={{ fontSize: '0.8rem', marginBottom: 8 }}>
-                                {rec.club} · Age <strong>{rec.age}</strong> · Role Index <strong>{rec.role_index}/100</strong>
-                              </div>
-                              <div className="flex items-center justify-between" style={{ fontSize: '0.82rem', marginBottom: 6 }}>
-                                <span className="text-muted">Model Est:</span>
-                                <strong style={{ color: 'var(--c-accent)', fontFamily: 'var(--font-mono)' }}>{fmtValue(rec.estimated_value_eur)}</strong>
-                              </div>
-                              <div className="flex items-center justify-between" style={{ fontSize: '0.8rem', marginBottom: 8 }}>
-                                <span className="text-muted">Ideal Contract:</span>
-                                <strong style={{ color: 'var(--c-text)' }}>{rec.recommended_years}</strong>
-                              </div>
-                              {rec.shared_labels?.length > 0 && (
-                                <div className="flex gap-4 wrap">
-                                  {rec.shared_labels.map((s, si) => (
-                                    <span key={si} className="badge badge-gray" style={{ fontSize: '0.68rem' }}>{s}</span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex gap-8 pt-8" style={{ borderTop: '1px solid var(--c-border)', paddingTop: 10 }}>
-                              <ShortlistBtn player={rec} />
-                              <Link to={`/compare?ids=${st.id},${rec.id}`} className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto', fontSize: '0.78rem' }}>
-                                <IconScale size={13} /> Compare
-                              </Link>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-muted" style={{ fontSize: '0.85rem' }}>
-                        No external replacements found within the current budget cap. Try increasing the budget slider above.
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            {(audit.vulnerabilities || []).length > 0 ? (
+              <div className="flex-col gap-20">
+                {audit.vulnerabilities.map((v, idx) => (
+                  <VulnerabilityCard key={v.starter.id} v={v} idx={idx} />
+                ))}
+              </div>
+            ) : (
+              <div className="card" style={{ padding: '24px 28px', borderColor: 'rgba(34, 197, 94, 0.45)' }}>
+                <div className="flex items-center gap-10 mb-8" style={{ color: '#86efac', fontWeight: 700, fontSize: '1.05rem' }}>
+                  <IconShield size={18} /> Elite 3-Year Squad Outlook — No Urgent Replacements Detected
+                </div>
+                <p className="text-muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+                  Every starter in {audit.club}&apos;s Best XI is projected to maintain strong Premier League performance over the next 3 seasons (2026–2029) or is a young developing player on an upward trajectory.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

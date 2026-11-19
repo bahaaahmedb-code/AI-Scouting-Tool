@@ -217,7 +217,7 @@ def whatif(request: Request, body: WhatIfBody):
 
 @app.get("/api/clubs/audit")
 @limiter.limit(settings.rate_limit)
-def club_audit(request: Request, club: str = Query(..., max_length=80), max_pct: float = Query(90.0, ge=30, le=200)):
+def club_audit(request: Request, club: str = Query(..., max_length=80), max_pct: float = Query(90.0, ge=30, le=1000)):
     try:
         return S().club_audit(club, max_pct=max_pct)
     except KeyError:

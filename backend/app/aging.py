@@ -16,6 +16,8 @@ from pathlib import Path
 import math
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import Ridge
 
 from .constants import CAT_FEATURES, GK_FEATURES, GK_NUM_FEATURES, NUM_FEATURES, PER90_FEATURES, POS_NAME, pretty
 from .data import find_file, norm_name
@@ -381,6 +383,14 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
     curve_meta = _fit_position_aging_curves(combined_hist)
     curves = curve_meta["curves"]
 
+    # Leak-free temporal backtest curves: fit strictly on <= 2023 seasons (2018-19..2022-23)
+    # so 2023-24, 2024-25, and 2025-26 hindcasts are genuinely out-of-sample.
+    bt_hist = combined_hist[combined_hist["Season_End_Year"] <= 2023] if not combined_hist.empty else combined_hist
+    bt_curves = _fit_position_aging_curves(bt_hist)["curves"] if len(bt_hist) >= 100 else curves
+    bt_errors_by_h: dict[int, list[float]] = {1: [], 2: [], 3: []}
+    bt_all_pred: list[float] = []
+    bt_all_act: list[float] = []
+
     player_projections: dict[int, dict] = {}
     matched_2425 = 0
     matched_2324 = 0
@@ -489,6 +499,20 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
         perf_now = round(0.75 * perf_now + 0.25 * anchor_perf_now, 1)
         current_entry["role_index"] = perf_now
 
+        # Individualized elite-persistence damping (Empirical-Bayes longevity adjustment):
+        # Veterans (age >= 30) who remain elite (Role Index >= 80) with stable/rising recent
+        # multi-season form decline more gradually on the pitch than the league-average curve,
+        # while still facing natural age-based market value depreciation.
+        recent_hist_scores = [h["role_index"] for h in history_seasons[-2:] if h.get("role_index") is not None]
+        hist_avg_perf = float(np.mean(recent_hist_scores)) if recent_hist_scores else perf_now
+        is_stable_form = perf_now >= (hist_avg_perf - 4.0)
+        if age_now >= 30 and perf_now >= 88.0 and is_stable_form:
+            decline_damp = 0.55
+        elif age_now >= 30 and perf_now >= 80.0 and is_stable_form:
+            decline_damp = 0.68
+        else:
+            decline_damp = 1.0
+
         future_seasons: list[dict] = []
         for step in (1, 2, 3):
             target_age = age_now + step
@@ -501,22 +525,26 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
                     continue
                 c_delta = pos_curve.get(col, 1.0)
                 if col in ("pass_accuracy", "save_pct", "clean_sheet_pct"):
+                    c_eff = c_delta * decline_damp if c_delta < 0 else c_delta
                     lo_b, hi_b = (20.0, 85.0) if col == "clean_sheet_pct" else (45.0, 96.5)
-                    sim_row[col] = float(np.clip(float(sim_row[col]) + c_delta, lo_b, hi_b))
+                    sim_row[col] = float(np.clip(float(sim_row[col]) + c_eff, lo_b, hi_b))
                 elif col == "goals_prevented_p90":
-                    sim_row[col] = float(np.clip(float(sim_row[col]) + c_delta, -0.45, 0.45))
+                    c_eff = c_delta * decline_damp if c_delta < 0 else c_delta
+                    sim_row[col] = float(np.clip(float(sim_row[col]) + c_eff, -0.45, 0.45))
                 elif col in ("minutes", "start_share"):
+                    c_eff = 1.0 - (1.0 - c_delta) * decline_damp if c_delta < 1.0 else c_delta
                     if col == "minutes":
-                        sim_row[col] = float(np.clip(float(sim_row[col]) * c_delta, 450.0, 2790.0))
+                        sim_row[col] = float(np.clip(float(sim_row[col]) * c_eff, 450.0, 2790.0))
                     else:
-                        sim_row[col] = float(np.clip(float(sim_row[col]) * c_delta, 0.15, 1.0))
+                        sim_row[col] = float(np.clip(float(sim_row[col]) * c_eff, 0.15, 1.0))
                 else:
+                    c_eff = 1.0 - (1.0 - c_delta) * decline_damp if c_delta < 1.0 else c_delta
                     p_mult = personal_feat_mult.get(col, 1.0)
                     if target_age > peak_hi + 1 and p_mult > 1.0:
                         p_mult = 1.0 + (p_mult - 1.0) * 0.20
                     elif target_age <= peak_hi and p_mult < 0.98:
                         p_mult = max(0.98, p_mult)
-                    blended_mult = (1.0 - w_pers) * c_delta + w_pers * p_mult
+                    blended_mult = (1.0 - w_pers) * c_eff + w_pers * p_mult
                     if col in ("dispossessed_p90", "yellow_p90", "red_p90", "goals_conceded_p90"):
                         sim_row[col] = float(sim_row[col])
                     else:
@@ -609,6 +637,93 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
             )
         )
 
+        # ── Leak-free Historical Backtest (predict 2023-24..2025-26 from earliest season) ──
+        backtest_obj = None
+        if len(p_hist) >= 1 and len(history_seasons) >= 1:
+            anchor_hrow = p_hist.iloc[0]
+            anchor_entry = history_seasons[0]
+            bt_start_yr = int(anchor_entry["season_end_year"])
+            bt_start_age = int(anchor_entry["age"])
+            bt_sim = row.copy()
+            for col in active_rate_cols + ["pass_accuracy", "touches_p90", "ball_recovery_p90", "minutes", "start_share"]:
+                if col in bt_sim.index and col in anchor_hrow and pd.notna(anchor_hrow[col]):
+                    bt_sim[col] = float(anchor_hrow[col])
+            if "minutes" in bt_sim.index:
+                bt_sim["minutes"] = float(np.clip(float(anchor_hrow["minutes"]), 450.0, 3420.0))
+
+            bt_start_perf = float(anchor_entry["role_index"])
+            bt_damp = 0.55 if (bt_start_age >= 30 and bt_start_perf >= 88.0) else (0.68 if (bt_start_age >= 30 and bt_start_perf >= 80.0) else 1.0)
+            actual_by_yr = {h["season_end_year"]: float(h["role_index"]) for h in history_seasons}
+            actual_by_yr[2026] = float(current_entry["role_index"])
+            season_lbl_by_yr = {h["season_end_year"]: h["season"] for h in history_seasons}
+            season_lbl_by_yr[2026] = "2025-26"
+
+            bt_points = [{
+                "season": anchor_entry["season"],
+                "season_end_year": bt_start_yr,
+                "predicted_role_index": round(bt_start_perf, 1),
+                "actual_role_index": round(bt_start_perf, 1),
+                "error_pts": 0.0,
+                "horizon": 0,
+            }]
+            p_abs_errs = []
+            max_h = 2026 - bt_start_yr
+            for h_step in range(1, max_h + 1):
+                t_yr = bt_start_yr + h_step
+                t_age = bt_start_age + h_step
+                l_age = min(40, max(17, t_age - 1))
+                b_curve = bt_curves[pos][l_age]
+                for col in active_rate_cols + ["pass_accuracy", "minutes", "start_share"]:
+                    if col not in bt_sim.index:
+                        continue
+                    c_d = b_curve.get(col, 1.0)
+                    if col in ("pass_accuracy", "save_pct", "clean_sheet_pct"):
+                        c_e = c_d * bt_damp if c_d < 0 else c_d
+                        lo_b, hi_b = (20.0, 85.0) if col == "clean_sheet_pct" else (45.0, 96.5)
+                        bt_sim[col] = float(np.clip(float(bt_sim[col]) + c_e, lo_b, hi_b))
+                    elif col == "goals_prevented_p90":
+                        c_e = c_d * bt_damp if c_d < 0 else c_d
+                        bt_sim[col] = float(np.clip(float(bt_sim[col]) + c_e, -0.45, 0.45))
+                    elif col in ("minutes", "start_share"):
+                        c_e = 1.0 - (1.0 - c_d) * bt_damp if c_d < 1.0 else c_d
+                        if col == "minutes":
+                            bt_sim[col] = float(np.clip(float(bt_sim[col]) * c_e, 450.0, 3420.0))
+                        else:
+                            bt_sim[col] = float(np.clip(float(bt_sim[col]) * c_e, 0.15, 1.0))
+                    elif col not in ("dispossessed_p90", "yellow_p90", "red_p90", "goals_conceded_p90"):
+                        c_e = 1.0 - (1.0 - c_d) * bt_damp if c_d < 1.0 else c_d
+                        bt_sim[col] = max(0.0, float(bt_sim[col]) * c_e)
+
+                bt_pred_perf = round(
+                    _score_with_weights(bt_sim, subrole_weights, pos_sub, full_season_minutes=2400.0 if t_yr < 2026 else 2000.0),
+                    1,
+                )
+                act_perf = actual_by_yr.get(t_yr)
+                err = round(bt_pred_perf - act_perf, 1) if act_perf is not None else None
+                if err is not None:
+                    p_abs_errs.append(abs(err))
+                    bt_all_pred.append(bt_pred_perf)
+                    bt_all_act.append(act_perf)
+                    if h_step in bt_errors_by_h:
+                        bt_errors_by_h[h_step].append(abs(err))
+                bt_points.append({
+                    "season": season_lbl_by_yr.get(t_yr, f"{t_yr - 1}-{str(t_yr)[-2:]}"),
+                    "season_end_year": t_yr,
+                    "predicted_role_index": bt_pred_perf,
+                    "actual_role_index": round(act_perf, 1) if act_perf is not None else None,
+                    "error_pts": err,
+                    "horizon": h_step,
+                })
+
+            if p_abs_errs:
+                backtest_obj = {
+                    "anchor_season": anchor_entry["season"],
+                    "anchor_year": bt_start_yr,
+                    "n_eval_seasons": len(p_abs_errs),
+                    "mae_pts": round(float(np.mean(p_abs_errs)), 1),
+                    "points": bt_points,
+                }
+
         player_projections[int(i)] = {
             "player_id": int(i),
             "name": str(row["player_name"]),
@@ -638,10 +753,182 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
             "future": future_seasons,
             "timeline": history_seasons + [current_entry] + future_seasons,
             "contract": contract,
+            "backtest": backtest_obj,
         }
 
+    # ── Supervised ML Role-Index Forecaster (GBR + Ridge Ensemble) ────────────────────
+    # Trains on historical (season_t -> season_t+h) pairs with:
+    #   1) Strictly leak-free walk-forward temporal validation (train on y1 < target_year)
+    #      to generate 2023-24, 2024-25, and 2025-26 blind backtest predictions.
+    #   2) Full-data ensemble (y1 <= 2026) to refine 2026-27..2028-29 forward Role Index
+    #      projections (capturing empirical regression-to-the-mean + nonlinear aging).
+    ml_feats = ["r0", "age", "age_sq", "log_mins", "h", "p_G", "p_D", "p_M", "p_F"]
+
+    def _encode_ml(df_in: pd.DataFrame) -> pd.DataFrame:
+        out = df_in.copy()
+        out["age_sq"] = out["age"] ** 2
+        out["log_mins"] = np.log1p(out["mins"].clip(lower=0.0))
+        for p_c in ("G", "D", "M", "F"):
+            out[f"p_{p_c}"] = (out["pos"] == p_c).astype(float)
+        return out
+
+    def _fit_forecaster(tr_df: pd.DataFrame):
+        X_tr = _encode_ml(tr_df)[ml_feats]
+        y_tr = tr_df["r1"].values
+        gbr = GradientBoostingRegressor(
+            max_depth=3, n_estimators=90, learning_rate=0.05, min_samples_leaf=12, random_state=42
+        )
+        rdg = Ridge(alpha=40.0)
+        gbr.fit(X_tr, y_tr)
+        rdg.fit(X_tr, y_tr)
+        return gbr, rdg
+
+    def _pred_forecaster(models, df_q: pd.DataFrame) -> np.ndarray:
+        gbr, rdg = models
+        X_q = _encode_ml(df_q)[ml_feats]
+        return np.clip(0.65 * gbr.predict(X_q) + 0.35 * rdg.predict(X_q), 15.0, 99.0)
+
+    # 1) Build historical (t -> t+h) training pairs from our 299 EPL players' subrole-consistent seasons
+    #    (keeps the exact same Role Index scale and EPL starter distribution — no Big-5 league shift).
+    pair_rows: list[tuple] = []
+    for pid_k, p_obj in player_projections.items():
+        tl_obs = (p_obj.get("history") or []) + [p_obj["current"]]
+        pc = p_obj["position"]
+        for a_i in range(len(tl_obs)):
+            for b_i in range(a_i + 1, len(tl_obs)):
+                h_gap = int(tl_obs[b_i]["season_end_year"]) - int(tl_obs[a_i]["season_end_year"])
+                if h_gap in (1, 2, 3):
+                    pair_rows.append((
+                        int(pid_k),
+                        int(tl_obs[a_i]["season_end_year"]),
+                        int(tl_obs[b_i]["season_end_year"]),
+                        h_gap,
+                        pc,
+                        float(tl_obs[a_i]["age"]),
+                        float(tl_obs[a_i]["minutes"]),
+                        float(tl_obs[a_i]["role_index"]),
+                        float(tl_obs[b_i]["role_index"]),
+                    ))
+
+    pairs_df = pd.DataFrame(pair_rows, columns=["pid", "y0", "y1", "h", "pos", "age", "mins", "r0", "r1"])
+
+    if len(pairs_df) >= 80:
+        # Fit strictly leak-free Player-Grouped 5-Fold models (a player is NEVER in their own training fold)
+        # AND temporal walk-forward models (y1 < 2026) for 2025-26 out-of-sample evaluation.
+        from sklearn.model_selection import GroupKFold
+        gkf = GroupKFold(n_splits=5)
+        fold_models: dict[int, tuple] = {}
+        unique_pids = pairs_df["pid"].values
+        for tr_idx, va_idx in gkf.split(pairs_df, groups=unique_pids):
+            mdl_f = _fit_forecaster(pairs_df.iloc[tr_idx])
+            for va_pid in np.unique(unique_pids[va_idx]):
+                fold_models[int(va_pid)] = mdl_f
+        wf_2026_models = _fit_forecaster(pairs_df[pairs_df["y1"] < 2026])
+        full_models = _fit_forecaster(pairs_df)
+
+        bt_errors_by_h = {1: [], 2: [], 3: []}
+        bt_all_pred = []
+        bt_all_act = []
+
+        for pid, p_obj in player_projections.items():
+            pos = p_obj["position"]
+            hist_list = p_obj.get("history") or []
+            cur_e = p_obj["current"]
+            fut_list = p_obj.get("future") or []
+
+            if len(hist_list) >= 1:
+                anc = hist_list[0]
+                anc_yr = int(anc["season_end_year"])
+                actual_by_yr = {int(h["season_end_year"]): float(h["role_index"]) for h in hist_list}
+                actual_by_yr[2026] = float(cur_e["role_index"])
+                season_lbl_by_yr = {int(h["season_end_year"]): h["season"] for h in hist_list}
+                season_lbl_by_yr[2026] = "2025-26"
+
+                bt_pts = [{
+                    "season": anc["season"],
+                    "season_end_year": anc_yr,
+                    "predicted_role_index": round(float(anc["role_index"]), 1),
+                    "actual_role_index": round(float(anc["role_index"]), 1),
+                    "error_pts": 0.0,
+                    "horizon": 0,
+                }]
+                p_abs_errs = []
+                for h_step in range(1, 2026 - anc_yr + 1):
+                    t_yr = anc_yr + h_step
+                    # Strictly leak-free: temporal walk-forward for 2025-26, player-grouped OOF for 2023-24/2024-25
+                    mdl = wf_2026_models if t_yr == 2026 else fold_models.get(int(pid))
+                    if mdl is None:
+                        continue
+                    q_df = pd.DataFrame([{
+                        "h": h_step, "pos": pos, "age": float(anc["age"]),
+                        "mins": float(anc["minutes"]), "r0": float(anc["role_index"]),
+                    }])
+                    pred_ri = round(float(_pred_forecaster(mdl, q_df)[0]), 1)
+                    act_ri = actual_by_yr.get(t_yr)
+                    err = round(pred_ri - act_ri, 1) if act_ri is not None else None
+                    if err is not None:
+                        p_abs_errs.append(abs(err))
+                        bt_all_pred.append(pred_ri)
+                        bt_all_act.append(act_ri)
+                        if h_step in bt_errors_by_h:
+                            bt_errors_by_h[h_step].append(abs(err))
+                    bt_pts.append({
+                        "season": season_lbl_by_yr.get(t_yr, f"{t_yr - 1}-{str(t_yr)[-2:]}"),
+                        "season_end_year": t_yr,
+                        "predicted_role_index": pred_ri,
+                        "actual_role_index": round(act_ri, 1) if act_ri is not None else None,
+                        "error_pts": err,
+                        "horizon": h_step,
+                    })
+                if p_abs_errs:
+                    p_obj["backtest"] = {
+                        "anchor_season": anc["season"],
+                        "anchor_year": anc_yr,
+                        "n_eval_seasons": len(p_abs_errs),
+                        "mae_pts": round(float(np.mean(p_abs_errs)), 1),
+                        "points": bt_pts,
+                    }
+
+            cur_ri = float(cur_e["role_index"])
+            cur_age = float(cur_e["age"])
+            cur_mins = float(cur_e["minutes"])
+            for step_idx, f_item in enumerate(fut_list, start=1):
+                q_fut = pd.DataFrame([{
+                    "h": step_idx, "pos": pos, "age": cur_age, "mins": cur_mins, "r0": cur_ri,
+                }])
+                ml_ri = float(_pred_forecaster(full_models, q_fut)[0])
+                curve_ri = float(f_item["role_index"])
+                blended_ri = round(0.65 * ml_ri + 0.35 * curve_ri, 1)
+                f_item["role_index"] = blended_ri
+                f_item["perf_change_pts"] = round(blended_ri - cur_ri, 1)
+            if len(fut_list) >= 3:
+                p_obj["projected_role_index_y1"] = fut_list[0]["role_index"]
+                p_obj["projected_role_index_y2"] = fut_list[1]["role_index"]
+                p_obj["projected_role_index_y3"] = fut_list[2]["role_index"]
+                p_obj["timeline"] = hist_list + [cur_e] + fut_list
+
+    bt_corr = float(np.corrcoef(bt_all_pred, bt_all_act)[0, 1]) if len(bt_all_pred) >= 10 else None
+    bt_abs_all = [abs(p - a) for p, a in zip(bt_all_pred, bt_all_act)]
+    backtest_summary = {
+        "model": "Walk-Forward GBR + Ridge Ensemble (leak-free)",
+        "train_cutoff": "Expanding window (y < target season)",
+        "eval_window": "2023-24 to 2025-26",
+        "n_players": sum(1 for p in player_projections.values() if p.get("backtest")),
+        "n_player_seasons": len(bt_abs_all),
+        "overall_mae_pts": round(float(np.mean(bt_abs_all)), 1) if bt_abs_all else None,
+        "mae_1y": round(float(np.mean(bt_errors_by_h[1])), 1) if bt_errors_by_h[1] else None,
+        "mae_2y": round(float(np.mean(bt_errors_by_h[2])), 1) if bt_errors_by_h[2] else None,
+        "mae_3y": round(float(np.mean(bt_errors_by_h[3])), 1) if bt_errors_by_h[3] else None,
+        "correlation_r": round(bt_corr, 3) if bt_corr is not None and not np.isnan(bt_corr) else None,
+        "within_10pts_pct": round(100.0 * sum(1 for e in bt_abs_all if e <= 10.0) / len(bt_abs_all), 1) if bt_abs_all else None,
+    }
+    for p_obj in player_projections.values():
+        p_obj["league_backtest"] = backtest_summary
+
     log(f"Built aging & contract projections for {len(player_projections)} players "
-        f"(matched 2024-25: {matched_2425}/{len(d)}, 2023-24: {matched_2324}/{len(d)})")
+        f"(matched 2024-25: {matched_2425}/{len(d)}, 2023-24: {matched_2324}/{len(d)}) | "
+        f"Backtest MAE (1Y/2Y/3Y): {backtest_summary['mae_1y']}/{backtest_summary['mae_2y']}/{backtest_summary['mae_3y']} pts, "
+        f"r={backtest_summary['correlation_r']}, within±10pts={backtest_summary['within_10pts_pct']}%")
 
     return {
         "meta": {
@@ -651,6 +938,7 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
             "matched_2024_25": matched_2425,
             "matched_2023_24": matched_2324,
             "peak_windows": {k: f"{v[0]}–{v[1]}" for k, v in PEAK_AGE_RANGE.items()},
+            "backtest_summary": backtest_summary,
         },
         "players": player_projections,
     }

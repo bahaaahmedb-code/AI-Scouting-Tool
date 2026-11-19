@@ -25,19 +25,25 @@ function norm(p) {
   }
 }
 
-/** Normalize SHAP response: {rows, prediction_eur, base_value_eur} → {features, predicted, base_value} */
+/** Normalize SHAP response while preserving base_eur, prediction_eur, and per-row eur/pct */
 function normShap(s) {
   if (!s) return s
+  const rows = (s.rows ?? s.features ?? []).map(r => ({
+    ...r,
+    name: r.label ?? r.name ?? r.feature,
+    shap: r.contribution ?? r.shap,
+    tooltip: r.tooltip ?? '',
+  }))
+  const baseEur = s.base_eur ?? s.base_value_eur ?? s.base_value ?? 0
+  const predEur = s.prediction_eur ?? s.predicted ?? 0
   return {
-    base_value: s.base_value_eur ?? s.base_value ?? 0,
-    predicted: s.prediction_eur ?? s.predicted ?? 0,
-    features: (s.rows ?? s.features ?? []).map(r => ({
-      name: r.label ?? r.name ?? r.feature,
-      value: r.value,
-      shap: r.contribution ?? r.shap,
-      tooltip: r.tooltip ?? '',
-      group: r.group,
-    })),
+    ...s,
+    base_eur: baseEur,
+    base_value: baseEur,
+    prediction_eur: predEur,
+    predicted: predEur,
+    rows,
+    features: rows,
   }
 }
 

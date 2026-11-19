@@ -1,9 +1,22 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useShortlist } from '../shortlist'
 import { fmtValue } from '../utils'
 import { PosChip } from './UI'
 import { IconScale, IconClipboard } from './Icons'
+
+const POS_LABELS = {
+  G: 'Goalkeepers',
+  D: 'Defenders',
+  M: 'Midfielders',
+  F: 'Forwards',
+}
+const POS_ORDER = ['F', 'M', 'D', 'G']
+const normPos = (p) => {
+  const raw = String(p?.position || '').toUpperCase()
+  return raw === 'GK' ? 'G' : raw
+}
 
 /** Reusable star/bookmark button for adding/removing any player from My Shortlist */
 export function ShortlistBtn({ player, compact = false }) {
@@ -45,6 +58,7 @@ export function ShortlistBtn({ player, compact = false }) {
 export default function ShortlistDrawer({ open, onClose }) {
   const { items, remove, clear } = useShortlist()
   const navigate = useNavigate()
+  const [selectedPos, setSelectedPos] = useState('')
 
   if (!open) return null
 
@@ -52,6 +66,16 @@ export default function ShortlistDrawer({ open, onClose }) {
   const totalMkt = items.reduce((s, p) => s + (p.listed_value_eur || 0), 0)
   const avgAge = items.length ? items.reduce((s, p) => s + (p.age || 0), 0) / items.length : 0
   const valueGap = totalEst - totalMkt
+
+  // Group shortlisted players by position for same-position-only comparisons
+  const groupsByPos = POS_ORDER.map(pos => ({
+    pos,
+    label: POS_LABELS[pos],
+    players: items.filter(p => normPos(p) === pos),
+  })).filter(g => g.players.length > 0)
+
+  const comparableGroups = groupsByPos.filter(g => g.players.length >= 2)
+  const activeGroup = comparableGroups.find(g => g.pos === selectedPos) ?? comparableGroups[0] ?? null
 
   function handleExportCsv() {
     if (!items.length) return
@@ -71,8 +95,9 @@ export default function ShortlistDrawer({ open, onClose }) {
     toast.success('Exported transfer shortlist CSV')
   }
 
-  function handleCompareAll() {
-    const ids = items.slice(0, 4).map(p => p.id).join(',')
+  function handleComparePosition(group = activeGroup) {
+    if (!group || group.players.length < 2) return
+    const ids = group.players.slice(0, 4).map(p => p.id).join(',')
     onClose()
     navigate(`/compare?ids=${ids}`)
   }
@@ -202,16 +227,54 @@ export default function ShortlistDrawer({ open, onClose }) {
         {/* Footer actions */}
         {items.length > 0 && (
           <div style={{ padding: '16px 24px', borderTop: '1px solid var(--c-border)', background: 'var(--c-card)' }}>
+            {comparableGroups.length > 1 && (
+              <div className="mb-12">
+                <div className="label mb-6" style={{ fontSize: '0.68rem' }}>
+                  Compare Position Group (Same Position Only)
+                </div>
+                <div className="flex gap-6 wrap">
+                  {comparableGroups.map(g => {
+                    const active = activeGroup?.pos === g.pos
+                    return (
+                      <button
+                        key={g.pos}
+                        type="button"
+                        onClick={() => setSelectedPos(g.pos)}
+                        className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '4px 10px', fontSize: '0.76rem' }}
+                        aria-pressed={active}
+                      >
+                        {g.label} ({g.players.length})
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {comparableGroups.length === 0 && (
+              <p className="text-subtle mb-8" style={{ fontSize: '0.76rem', textAlign: 'center' }}>
+                Add at least 2 players in the same position to compare side by side.
+              </p>
+            )}
+
             <div className="flex gap-8 mb-8">
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
                 style={{ flex: 1, justifyContent: 'center' }}
-                disabled={items.length < 2}
-                onClick={handleCompareAll}
-                title={items.length < 2 ? 'Add at least 2 players to compare' : 'Compare top shortlisted players'}
+                disabled={!activeGroup}
+                onClick={() => handleComparePosition(activeGroup)}
+                title={
+                  activeGroup
+                    ? `Compare ${Math.min(activeGroup.players.length, 4)} ${activeGroup.label.toLowerCase()} side by side`
+                    : 'Add at least 2 players in the same position to compare'
+                }
               >
-                <IconScale size={14} /> Compare ({Math.min(items.length, 4)})
+                <IconScale size={14} />{' '}
+                {activeGroup
+                  ? `Compare ${activeGroup.label} (${Math.min(activeGroup.players.length, 4)})`
+                  : 'Compare (Same Pos)'}
               </button>
               <button
                 type="button"

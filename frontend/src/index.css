@@ -584,6 +584,8 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 
 /* Remove browser focus ring around interactive Recharts SVGs */
 .recharts-wrapper, .recharts-surface, .recharts-layer { outline: none; }
+.recharts-default-tooltip .recharts-tooltip-label { color: #ffffff !important; font-weight: 700; margin-bottom: 4px; }
+.recharts-default-tooltip .recharts-tooltip-item  { color: #f8fafc !important; }
 
 /* ─── Print / "Save as PDF" scouting report ─────────────────────────────────── */
 .print-only { display: none; }

@@ -622,16 +622,66 @@ class Store:
         if sub.empty:
             raise KeyError(club)
 
+        # Compute position-relative Role Index benchmarks & Hopkins/Cohen effect-size margins
+        # across all 299 EPL players (Hopkins, 2002; Cohen, 1988):
+        #   - SWC (Smallest Worthwhile Change) = 0.2 * SD  (filters out trivial 1-3 pt noise)
+        #   - Moderate significant margin      = 0.5..0.6 * SD (true competitive gap / decline)
+        pos_bench: dict[str, dict[str, float]] = {}
+        for pos_code in ("G", "D", "M", "F"):
+            p_now_vals, p_y3_vals = [], []
+            for idx_all in self.d.index[self.d["position"] == pos_code]:
+                pr = self.projection(int(idx_all)) or {}
+                rn = float(pr.get("current_role_index") or 60.0)
+                fl = pr.get("future") or []
+                r3 = float(fl[-1]["role_index"]) if fl else rn
+                p_now_vals.append(rn)
+                p_y3_vals.append(r3)
+            y3_sd = float(np.std(p_y3_vals)) if len(p_y3_vals) > 1 else 12.0
+            y3_med = float(np.percentile(p_y3_vals, 50)) if p_y3_vals else 62.0
+            swc = round(0.20 * y3_sd, 1)       # Smallest Worthwhile Change (~2.5-3.5 pts)
+            sig_gap = round(0.50 * y3_sd, 1)   # Significant below-median gap (~6.2-8.8 pts)
+            sig_drop = round(0.60 * y3_sd, 1)  # Hopkins Moderate significant decline (~7.5-10.6 pts)
+            pos_bench[pos_code] = {
+                "now_med":  float(np.percentile(p_now_vals, 50)) if p_now_vals else 62.0,
+                "y3_med":   y3_med,
+                "y3_sd":    y3_sd,
+                "swc":      swc,
+                "sig_gap":  sig_gap,
+                "sig_drop": sig_drop,
+                "y3_weak":  y3_med - sig_gap,   # Significantly below positional median (-0.5 SD)
+                "y3_p70":   float(np.percentile(p_y3_vals, 70)) if p_y3_vals else 72.0,
+            }
+
         roster = []
         for i in sub.index:
             s = self.summary(int(i))
             proj = self.projection(int(i)) or {}
             contract = proj.get("contract") or {}
             r_idx = float(proj.get("current_role_index") or 60.0)
+            fut_list = proj.get("future") or []
+            r_idx_y3 = float(fut_list[-1]["role_index"]) if fut_list else r_idx
+            perf_delta_3y = round(r_idx_y3 - r_idx, 1)
             subrole = proj.get("subrole") or POS_NAME[s["position"]]
+            age_val = int(s["age"])
+            pb = pos_bench[s["position"]]
+            # Young developing = U23 improving by >= SWC (0.2 SD) AND reaching above significant-weakness floor
+            is_developing = age_val <= 23 and perf_delta_3y >= pb["swc"] and r_idx < pb["now_med"] and r_idx_y3 >= pb["y3_weak"]
+            if r_idx_y3 >= pb["y3_p70"]:
+                pitch_status = "core"
+            elif is_developing:
+                pitch_status = "developing"
+            elif r_idx >= pb["now_med"] and perf_delta_3y <= -pb["sig_drop"] and r_idx_y3 < pb["y3_med"] + pb["swc"]:
+                pitch_status = "succession"
+            elif r_idx_y3 < pb["y3_weak"]:
+                pitch_status = "upgrade"
+            else:
+                pitch_status = "core"
             roster.append({
                 **s,
                 "role_index": _f(r_idx, 1),
+                "role_index_y3": _f(r_idx_y3, 1),
+                "perf_delta_3y": _f(perf_delta_3y, 1),
+                "pitch_status": pitch_status,
                 "subrole": subrole,
                 "trajectory_label": proj.get("trajectory_label") or "Stable",
                 "trajectory_badge": proj.get("trajectory_badge") or "blue",
@@ -691,74 +741,276 @@ class Store:
         xi_avg_age = float(np.mean([p["age"] for p in starters])) if starters else avg_age
         xi_avg_role = float(np.mean([p["role_index"] for p in starters])) if starters else 65.0
 
-        # Identify top 3 squad vulnerabilities / succession priorities among Starters
+        # ── 2025-26 Team Unit Diagnostics (Attack / Midfield / Defense vs 3Y Aging) ──
+        # Computed BEFORE transfer suggestions so team-level unit weaknesses & internal
+        # development verdicts directly guide which positions need external recruitment.
+        club_unit_raw = {}
+        for c_name, c_df in self.d.groupby("team_name"):
+            gks_c = c_df[c_df["position"] == "G"]
+            defs_c = c_df[c_df["position"] == "D"]
+            mids_c = c_df[c_df["position"] == "M"]
+            att_mids_c = c_df[c_df["position"].isin(["F", "M"])]
+            goals_tot = float(c_df["goals"].sum())
+            xg_tot = float((c_df["xg_p90"] * c_df["minutes"] / 90.0).sum())
+            bc_p90 = float(att_mids_c["big_chances_created_p90"].mean()) if len(att_mids_c) else 0.0
+            pass_acc = float(mids_c["pass_accuracy"].mean()) if len(mids_c) else float(c_df["pass_accuracy"].mean())
+            kp_p90 = float(mids_c["key_passes_p90"].mean()) if len(mids_c) else float(c_df["key_passes_p90"].mean())
+            rec_p90 = float(mids_c["ball_recovery_p90"].mean()) if len(mids_c) else float(c_df["ball_recovery_p90"].mean())
+            gc_p90 = float(gks_c["goals_conceded_p90"].mean()) if len(gks_c) else 1.4
+            cs_pct = float(gks_c["clean_sheet_pct"].mean()) if len(gks_c) else 25.0
+            def_act = float(
+                (defs_c["tackles_won_p90"] + defs_c["interceptions_p90"] + defs_c["clearances_p90"]).mean()
+            ) if len(defs_c) else 5.0
+            club_unit_raw[c_name] = {
+                "goals": goals_tot, "xg": xg_tot, "bc_p90": bc_p90,
+                "pass_acc": pass_acc, "kp_p90": kp_p90, "rec_p90": rec_p90,
+                "gc_p90": gc_p90, "cs_pct": cs_pct, "def_act": def_act,
+            }
+
+        def _z(vals: dict[str, float], invert: bool = False) -> dict[str, float]:
+            arr = np.array(list(vals.values()), dtype=float)
+            mu, sd = float(arr.mean()), float(arr.std()) or 1.0
+            return {k: ((-1.0 if invert else 1.0) * (v - mu) / sd) for k, v in vals.items()}
+
+        z_goals = _z({k: v["goals"] for k, v in club_unit_raw.items()})
+        z_xg = _z({k: v["xg"] for k, v in club_unit_raw.items()})
+        z_bc = _z({k: v["bc_p90"] for k, v in club_unit_raw.items()})
+        att_scores = {k: 0.45 * z_goals[k] + 0.40 * z_xg[k] + 0.15 * z_bc[k] for k in club_unit_raw}
+
+        z_pass = _z({k: v["pass_acc"] for k, v in club_unit_raw.items()})
+        z_kp = _z({k: v["kp_p90"] for k, v in club_unit_raw.items()})
+        z_rec = _z({k: v["rec_p90"] for k, v in club_unit_raw.items()})
+        mid_scores = {k: 0.40 * z_pass[k] + 0.40 * z_kp[k] + 0.20 * z_rec[k] for k in club_unit_raw}
+
+        z_gc = _z({k: v["gc_p90"] for k, v in club_unit_raw.items()}, invert=True)
+        z_cs = _z({k: v["cs_pct"] for k, v in club_unit_raw.items()})
+        z_da = _z({k: v["def_act"] for k, v in club_unit_raw.items()})
+        def_scores = {k: 0.55 * z_gc[k] + 0.35 * z_cs[k] + 0.10 * z_da[k] for k in club_unit_raw}
+
+        def _rank_of(score_map: dict[str, float], target_club: str) -> int:
+            ordered = sorted(score_map.items(), key=lambda kv: -kv[1])
+            for idx_r, (cn, _) in enumerate(ordered, start=1):
+                if cn == target_club:
+                    return idx_r
+            return 10
+
+        cur_u = club_unit_raw[club]
+        n_clubs_total = len(club_unit_raw)
+
+        def _build_unit_diag(unit_key: str, title: str, rank: int, stat_line: str, unit_players: list[dict], recruit_noun: str) -> dict:
+            u_age = float(np.mean([p["age"] for p in unit_players])) if unit_players else 25.0
+            u_now = float(np.mean([p["role_index"] for p in unit_players])) if unit_players else 60.0
+            u_y3 = float(np.mean([p["role_index_y3"] for p in unit_players])) if unit_players else u_now
+            u_delta = round(u_y3 - u_now, 1)
+
+            if rank <= 7:
+                verdict = "Strong Unit"
+                badge = "green"
+                note = f"Top-{rank} Premier League {title.lower()} in 2025-26; maintain current core."
+            elif rank <= 12:
+                # Require a significant unit-level drop (>= 5.0 pts) for Aging Watch
+                if u_delta <= -5.0:
+                    verdict = "Aging Watch"
+                    badge = "amber"
+                    note = f"Mid-table {title.lower()} (#{rank}/{n_clubs_total}) projected to drop significantly ({u_delta:+.1f} pts over 3Y) — plan gradual succession."
+                else:
+                    verdict = "Solid Unit"
+                    badge = "blue"
+                    note = f"Mid-table {title.lower()} (#{rank}/{n_clubs_total}) with a stable 3-year trajectory ({u_delta:+.1f} pts)."
+            else:
+                # Bottom-8 EPL team unit -> require a worthwhile improvement (>= +3.0 pts, Hopkins SWC) to Hold & Develop
+                if u_delta >= 3.0 and u_age <= 24.5:
+                    verdict = "Weakness — Hold & Develop"
+                    badge = "blue"
+                    note = (
+                        f"Bottom-8 EPL {title.lower()} (#{rank}/{n_clubs_total}) in 2025-26, but starters are young "
+                        f"(avg {u_age:.1f}y) and projected to improve significantly ({u_delta:+.1f} pts over 3Y) — internal development recommended."
+                    )
+                else:
+                    verdict = "Weakness — Recruit Needed"
+                    badge = "red"
+                    note = (
+                        f"Bottom-8 EPL {title.lower()} (#{rank}/{n_clubs_total}) in 2025-26 and starters are not projected "
+                        f"to improve significantly ({u_delta:+.1f} pts over 3Y) — prioritize signing a {recruit_noun}."
+                    )
+            return {
+                "unit": unit_key,
+                "title": title,
+                "epl_rank": rank,
+                "n_clubs": n_clubs_total,
+                "stat_line": stat_line,
+                "avg_age": _f(u_age, 1),
+                "role_now": _f(u_now, 1),
+                "role_y3": _f(u_y3, 1),
+                "delta_3y": _f(u_delta, 1),
+                "verdict": verdict,
+                "badge": badge,
+                "note": note,
+            }
+
+        team_diagnostics = [
+            _build_unit_diag(
+                "attack", "Attacking Unit", _rank_of(att_scores, club),
+                f"{int(round(cur_u['goals']))} Goals · {cur_u['xg']:.1f} xG · {cur_u['bc_p90']:.2f} Big Chances/90",
+                xi_att, "forward / winger",
+            ),
+            _build_unit_diag(
+                "midfield", "Midfield Unit", _rank_of(mid_scores, club),
+                f"{cur_u['pass_acc']:.1f}% Pass Acc · {cur_u['kp_p90']:.2f} Key Passes/90 · {cur_u['rec_p90']:.1f} Rec/90",
+                xi_mid, "central midfielder",
+            ),
+            _build_unit_diag(
+                "defense", "Defensive Unit", _rank_of(def_scores, club),
+                f"{cur_u['gc_p90']:.2f} Conceded/90 · {cur_u['cs_pct']:.1f}% Clean Sheets",
+                xi_gk + xi_def, "defender / goalkeeper",
+            ),
+        ]
+        unit_by_key = {u["unit"]: u for u in team_diagnostics}
+        starter_unit_map: dict[int, str] = {}
+        for p in xi_gk + xi_def:
+            starter_unit_map[p["id"]] = "defense"
+        for p in xi_mid:
+            starter_unit_map[p["id"]] = "midfield"
+        for p in xi_att:
+            starter_unit_map[p["id"]] = "attack"
+
+        # Weakest starter per unit (used when a unit is flagged 'Weakness — Recruit Needed')
+        # Only protect true league superstars (role_index_y3 >= 78); otherwise pick the weakest starter in the weak unit.
+        weakest_in_unit: dict[str, int] = {}
+        for u_key, u_group in (("attack", xi_att), ("midfield", xi_mid), ("defense", xi_gk + xi_def)):
+            candidates_u = [
+                p for p in u_group
+                if (p.get("role_index_y3") or p["role_index"] or 60.0) < 78.0
+            ] or u_group
+            if candidates_u:
+                weakest_in_unit[u_key] = min(
+                    candidates_u,
+                    key=lambda p: (p.get("role_index_y3") or p["role_index"] or 60.0),
+                )["id"]
+
+        # Identify genuine squad priorities combining position-relative 3Y benchmarks + 2025-26 Team Unit Diagnostics:
+        # 1. Protect anyone in the top 30% of their position's 3Y projection (y3_p70), EXCEPT the weakest starter
+        #    in a team unit explicitly flagged 'Weakness — Recruit Needed' (unless they are a >=78 superstar).
+        # 2. Protect young improving starters in a 'Weakness — Hold & Develop' unit (no panic buy).
+        # 3. Boost / surface starters in 'Weakness — Recruit Needed' and 'Aging Watch' units.
+        # 4. Never force 3 cards if a club's Best XI and team units are all strong (0 to 3 priorities).
         vuln_candidates = []
         for p in starters:
             reasons = []
             urgency = 0.0
-            if p["age"] >= 31:
-                reasons.append(f"Veteran succession priority (age {p['age']})")
-                urgency += 35.0 + (p["age"] - 30) * 6.0
-            elif p["age"] >= 29 and (p["val_retention_3y_pct"] or 0) < -20:
-                reasons.append(f"Approaching post-peak depreciation ({p['val_retention_3y_pct']:+.0f}% 3Y value)")
-                urgency += 22.0
-            if (p["role_index"] or 0) < 66.0:
-                reasons.append(f"Below-elite starter Role Index ({p['role_index']:.1f}/100)")
-                urgency += (70.0 - (p["role_index"] or 60.0)) * 1.8
-            pos_count = sum(1 for x in roster if x["position"] == p["position"])
-            if (p["position"] == "D" and pos_count <= 3) or (p["position"] in ("F", "G") and pos_count <= 1):
-                reasons.append(f"Thin positional depth ({pos_count} qualified {POS_NAME[p['position']].lower()} in squad)")
-                urgency += 12.0
-            if not reasons:
-                reasons.append(f"Long-term rotation & value upgrade target ({p['subrole']})")
-                urgency += max(1.0, 82.0 - (p["role_index"] or 70.0)) * 0.5
-            vuln_candidates.append((urgency, reasons, p))
+            category = None
+            r_now = p["role_index"] or 65.0
+            r_y3 = p["role_index_y3"] if p.get("role_index_y3") is not None else r_now
+            d3 = p["perf_delta_3y"] if p.get("perf_delta_3y") is not None else 0.0
+            age_val = int(p["age"])
+            pb = pos_bench[p["position"]]
+            pos_lbl = POS_NAME[p["position"]].lower()
+            u_key = starter_unit_map.get(p["id"], "midfield")
+            u_diag = unit_by_key.get(u_key)
+            u_verdict = u_diag["verdict"] if u_diag else ""
+            is_weak_unit_target = (u_verdict == "Weakness — Recruit Needed" and weakest_in_unit.get(u_key) == p["id"] and r_y3 < 78.0)
+
+            # Elite 3-year outlook protection (top 30% of their position in 2028/29)
+            if r_y3 >= pb["y3_p70"] and not is_weak_unit_target:
+                continue
+
+            # Hold & Develop protection: only if improvement is at least Hopkins SWC (0.2 SD)
+            if u_verdict == "Weakness — Hold & Develop" and age_val <= 24 and d3 >= pb["swc"]:
+                continue
+            if age_val <= 23 and d3 >= pb["swc"] and r_y3 >= pb["y3_weak"] and not is_weak_unit_target:
+                continue
+
+            # Case A: Statistically significant 3Y decline (>= 0.6 SD, Hopkins Moderate) -> Succession Plan
+            if r_now >= pb["now_med"] and d3 <= -pb["sig_drop"] and r_y3 < pb["y3_med"] + pb["swc"]:
+                category = "Succession Plan"
+                reasons.append(
+                    f"Significant 3Y decline: {r_now:.0f} → {r_y3:.0f} ({d3:+.1f} pts, exceeds {pb['sig_drop']:.1f}-pt {pos_lbl} threshold)"
+                )
+                urgency += abs(min(0.0, d3)) * 2.0 + max(0.0, pb["y3_med"] + pb["swc"] - r_y3) * 1.8
+
+            # Case B: Significantly below positional median (-0.5 SD) -> Performance Upgrade
+            elif r_y3 < pb["y3_weak"]:
+                category = "Performance Upgrade"
+                if age_val <= 23 and d3 > 0.0:
+                    reasons.append(
+                        f"Projected 2028/29 Role Index {r_y3:.1f}/100 remains significantly below EPL {pos_lbl} median ({pb['y3_med']:.0f}; threshold {pb['y3_weak']:.0f})"
+                    )
+                else:
+                    reasons.append(
+                        f"Projected 2028/29 Role Index {r_y3:.1f}/100 (significantly below EPL {pos_lbl} median {pb['y3_med']:.0f}; cutoff {pb['y3_weak']:.0f})"
+                    )
+                    if d3 <= -pb["sig_drop"]:
+                        reasons.append(f"Significant 3Y decline of {d3:+.1f} pts")
+                urgency += (pb["y3_med"] - r_y3) * 2.2 + abs(min(0.0, d3)) * 1.5
+
+            # Team-Unit Diagnostics integration:
+            if u_verdict == "Weakness — Recruit Needed":
+                if category:
+                    urgency += 18.0
+                    reasons.insert(
+                        0,
+                        f"Team {u_diag['title']} ranked #{u_diag['epl_rank']}/{u_diag['n_clubs']} in EPL ({u_diag['stat_line']}) — recruit needed",
+                    )
+                elif weakest_in_unit.get(u_key) == p["id"]:
+                    category = "Team Unit Upgrade"
+                    urgency += 24.0 + max(0.0, pb["y3_med"] - r_y3)
+                    reasons.append(
+                        f"Team {u_diag['title']} ranked #{u_diag['epl_rank']}/{u_diag['n_clubs']} in EPL ({u_diag['stat_line']})"
+                    )
+                    reasons.append(f"Lowest 3Y projected starter in unit ({r_now:.0f} → {r_y3:.0f}/100)")
+            elif u_verdict == "Aging Watch" and d3 <= -pb["sig_drop"] and category:
+                urgency += 8.0
+                reasons.append(f"Team {u_diag['title']} on 3Y Aging Watch (#{u_diag['epl_rank']}/{u_diag['n_clubs']} EPL)")
+
+            if urgency > 0.0 and category:
+                vuln_candidates.append((urgency, category, reasons, p))
 
         vuln_candidates.sort(key=lambda t: -t[0])
         chosen_vulns = []
         seen_pos = set()
-        for urg, reasons, p in vuln_candidates:
+        for urg, category, reasons, p in vuln_candidates:
             if len(chosen_vulns) >= 3:
                 break
-            if p["position"] in seen_pos and len(vuln_candidates) > 3 and urg < 30:
+            if p["position"] in seen_pos and len(vuln_candidates) > 3 and urg < 35:
                 continue
             seen_pos.add(p["position"])
-            chosen_vulns.append((urg, reasons, p))
+            chosen_vulns.append((urg, category, reasons, p))
 
         club_player_ids = [int(i) for i in sub.index]
         vulnerabilities = []
-        for urg, reasons, p in chosen_vulns:
+        for urg, category, reasons, p in chosen_vulns:
             pid = p["id"]
-            # Find younger, high-performing external replacements in the same position
+            starter_est = float(p["estimated_value_eur"] or 1e6)
+            # Return the full sorted pool of external positive-fit younger replacements
+            # so each starter card has its own responsive % of Starter Value budget slider.
             q = ScoutQuery(
                 target=pid,
                 same_position=True,
-                max_pct=max_pct if p["age"] < 30 else max(max_pct, 250.0),
-                max_age=min(27, max(24, p["age"] - 1)) if p["age"] >= 28 else 26,
-                n=5,
+                max_pct=None,
+                max_age=min(28, max(25, p["age"] - 1)) if p["age"] >= 28 else 27,
+                n=40,
                 exclude=club_player_ids,
             )
-            sc = self.scout(q)
-            recs = sc["results"]
-            if len(recs) < 3:
-                q_broad = ScoutQuery(
+            pool = [r for r in self.scout(q)["results"] if (r.get("similarity") or 0.0) > 0.0]
+            if len(pool) < 5:
+                q_wide = ScoutQuery(
                     target=pid,
                     same_position=True,
                     max_pct=None,
-                    max_age=28,
-                    n=5,
+                    max_age=30,
+                    n=40,
                     exclude=club_player_ids,
                 )
-                recs = self.scout(q_broad)["results"]
+                pool = [r for r in self.scout(q_wide)["results"] if (r.get("similarity") or 0.0) > 0.0]
 
-            enriched_recs = []
-            for r_cand in recs[:3]:
+            enriched_pool = []
+            for r_cand in pool[:25]:
                 cid = r_cand["id"]
                 c_proj = self.projection(cid) or {}
                 c_cont = c_proj.get("contract") or {}
                 c_est = float(self.d.at[cid, "estimated_value_eur"])
                 c_mkt = float(self.d.at[cid, "market_value_eur"])
-                enriched_recs.append({
+                enriched_pool.append({
                     "id": cid,
                     "name": r_cand["name"],
                     "club": r_cand["club"],
@@ -767,18 +1019,25 @@ class Store:
                     "similarity": _f(r_cand["similarity"], 3),
                     "estimated_value_eur": _f(c_est),
                     "listed_value_eur": _f(c_mkt),
-                    "savings_vs_starter_eur": _f((p["estimated_value_eur"] or 0.0) - c_est),
+                    "pct_of_starter": _f((c_est / max(starter_est, 1e5)) * 100.0, 1),
+                    "savings_vs_starter_eur": _f(starter_est - c_est),
                     "role_index": _f(c_proj.get("current_role_index") or 65.0, 1),
                     "subrole": c_proj.get("subrole") or POS_NAME[r_cand["position"]],
                     "recommended_years": c_cont.get("recommended_years") or "4 Years",
                     "shared_labels": r_cand.get("shared_labels", [])[:2],
                 })
 
+            default_recs = [r for r in enriched_pool if r["pct_of_starter"] <= max_pct][:3]
+            if not default_recs:
+                default_recs = enriched_pool[:3]
+
             vulnerabilities.append({
                 "starter": p,
-                "priority": "High" if urg >= 30 else ("Medium" if urg >= 15 else "Watchlist"),
+                "category": category,
+                "priority": "High" if urg >= 35 else ("Medium" if urg >= 18 else "Watchlist"),
                 "reasons": reasons,
-                "replacements": enriched_recs,
+                "replacements": default_recs,
+                "replacement_pool": enriched_pool,
             })
 
         formation_str = f"{len(xi_def)}-{len(xi_mid)}-{len(xi_att)}"
@@ -796,6 +1055,7 @@ class Store:
             "avg_age": _f(avg_age, 1),
             "best_xi_avg_age": _f(xi_avg_age, 1),
             "best_xi_avg_role_index": _f(xi_avg_role, 1),
+            "team_diagnostics": team_diagnostics,
             "pitch": {
                 "gk": xi_gk,
                 "def": xi_def,

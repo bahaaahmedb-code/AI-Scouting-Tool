@@ -6,12 +6,21 @@ import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../compo
 import RadarChart from '../components/RadarChart'
 import { IconScale, IconChart, IconRadar } from '../components/Icons'
 
+function parseIdsParam(ids) {
+  if (!ids) return []
+  return ids
+    .split(',')
+    .slice(0, 4)
+    .map(s => s.trim())
+    .filter(s => s !== '')
+    .map(Number)
+    .filter(Number.isFinite)
+}
+
 export default function Compare() {
   const [searchParams] = useSearchParams()
-  const [selected, setSelected] = useState(() => {
-    const ids = searchParams.get('ids')
-    return ids ? ids.split(',').slice(0, 4).map(Number).filter(Boolean) : []
-  })
+  const idsParam = searchParams.get('ids') || ''
+  const [selected, setSelected] = useState(() => parseIdsParam(idsParam))
   const [search, setSearch] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [searched, setSearched] = useState(false)
@@ -21,6 +30,24 @@ export default function Compare() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('table')
+
+  // Sync URL ?ids=... changes (e.g. from Shortlist Drawer) and auto-run comparison
+  useEffect(() => {
+    const parsed = parseIdsParam(idsParam)
+    if (!parsed.length) return
+    setSelected(parsed)
+    if (parsed.length >= 2) {
+      setLoading(true)
+      setError(null)
+      getCompare(parsed)
+        .then(cmp => {
+          setCompare(cmp)
+          setRadar(cmp.radar ?? null)
+        })
+        .catch(e => setError(e.response?.data?.detail || e.message))
+        .finally(() => setLoading(false))
+    }
+  }, [idsParam])
 
   // Fetch player name list (always, needed for chip labels)
   useEffect(() => {
