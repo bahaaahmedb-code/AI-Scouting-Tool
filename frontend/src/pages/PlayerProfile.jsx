@@ -6,6 +6,7 @@ import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat } from '../compo
 import WaterfallChart from '../components/WaterfallChart'
 import AgingProjectionPanel from '../components/AgingProjectionPanel'
 import { ShortlistBtn } from '../components/ShortlistDrawer'
+import PlayerAvatar from '../components/PlayerAvatar'
 import {
   IconBall, IconStadium, IconCalendar, IconGlobe, IconClock, IconClipboard,
   IconContract, IconTarget, IconScale, IconChart, IconTrendUp, IconBrain, IconShield, IconAlert,
@@ -119,16 +120,7 @@ export default function PlayerProfile() {
         {/* ── Hero card ───────────────────────────────────────── */}
         <div className="card card--gradient card-glow-blue mb-24" style={{ padding: 32 }}>
           <div className="flex gap-24 wrap">
-            <div style={{
-              width: 80, height: 80, borderRadius: 16,
-              background: 'linear-gradient(135deg, rgba(200, 245, 66, 0.22), rgba(94, 234, 212, 0.16))',
-              border: '1px solid rgba(200, 245, 66, 0.35)',
-              color: 'var(--c-primary)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-              <IconBall size={38} />
-            </div>
+            <PlayerAvatar name={p.name ?? p.player_name} size={84} radius={16} />
 
             <div style={{ flex: 1 }}>
               <div className="flex items-center gap-12 wrap mb-8">
