@@ -70,6 +70,7 @@ class ScoutQuery:
     min_eur: float | None = None
     n: int = 10
     exclude: list[int] = field(default_factory=list)
+    method: str = "neural"               # "neural" (PyTorch Autoencoder DNA) | "cosine" (z-score cosine)
 
 
 def _mask(d: pd.DataFrame, q: ScoutQuery, value_col: str, max_pct, max_age, pos_mode) -> np.ndarray:
@@ -150,3 +151,140 @@ def relax_suggestions(d: pd.DataFrame, q: ScoutQuery, value_col: str, n_now: int
             out.append({"filter": "max_eur", "value": None, "adds": n - n_now,
                         "text": f"Removing the euro cap adds {n - n_now} candidate{'s' if n - n_now != 1 else ''}."})
     return out
+
+
+def train_neural_embeddings(
+    d: pd.DataFrame,
+    Z: pd.DataFrame,
+    hist_df: pd.DataFrame | None = None,
+    gk_hist_df: pd.DataFrame | None = None,
+    log=print,
+) -> dict | None:
+    """Train PyTorch Denoising Autoencoders ('Neural Player DNA') on historical Big-5
+    player-seasons and encode all 299 EPL players into dense tactical embeddings.
+
+    Imported lazily so runtime serving on Vercel requires zero PyTorch dependency.
+    """
+    try:
+        import torch
+        import torch.nn as nn
+        from torch.utils.data import DataLoader, TensorDataset
+    except ImportError:
+        log("PyTorch not installed; skipping Neural Autoencoder embeddings.")
+        return None
+
+    torch.manual_seed(42)
+    np.random.seed(42)
+
+    class DenoisingAutoencoder(nn.Module):
+        def __init__(self, in_dim: int, hidden_dim: int, latent_dim: int):
+            super().__init__()
+            self.encoder = nn.Sequential(
+                nn.Linear(in_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
+                nn.GELU(),
+                nn.Dropout(0.15),
+                nn.Linear(hidden_dim, latent_dim),
+            )
+            self.decoder = nn.Sequential(
+                nn.Linear(latent_dim, hidden_dim),
+                nn.LayerNorm(hidden_dim),
+                nn.GELU(),
+                nn.Linear(hidden_dim, in_dim),
+            )
+
+        def forward(self, x, corrupt: bool = False):
+            x_in = x + 0.15 * torch.randn_like(x) if corrupt else x
+            z = self.encoder(x_in)
+            return self.decoder(z), z
+
+    def _fit_ae(X_train: np.ndarray, X_eval: np.ndarray, hidden_dim: int, latent_dim: int, epochs: int = 45):
+        in_dim = X_train.shape[1]
+        model = DenoisingAutoencoder(in_dim, hidden_dim, latent_dim)
+        opt = torch.optim.AdamW(model.parameters(), lr=2.5e-3, weight_decay=1e-4)
+        loss_fn = nn.MSELoss()
+        ds = TensorDataset(torch.tensor(X_train, dtype=torch.float32))
+        dl = DataLoader(ds, batch_size=min(256, max(16, len(X_train) // 4)), shuffle=True)
+
+        model.train()
+        for _ in range(epochs):
+            for (bx,) in dl:
+                opt.zero_grad()
+                recon, _ = model(bx, corrupt=True)
+                loss = loss_fn(recon, bx)
+                loss.backward()
+                opt.step()
+
+        model.eval()
+        with torch.no_grad():
+            tx = torch.tensor(X_eval, dtype=torch.float32)
+            recon_e, emb_e = model(tx, corrupt=False)
+            r_np = recon_e.numpy()
+            ss_res = float(np.sum((X_eval - r_np) ** 2))
+            ss_tot = float(np.sum((X_eval - X_eval.mean(axis=0)) ** 2)) or 1.0
+            recon_r2 = max(0.0, 1.0 - ss_res / ss_tot)
+            return emb_e.numpy(), round(recon_r2, 4)
+
+    # 1. Outfield Autoencoder (trained on Big-5 historical outfield seasons + current outfield)
+    out_mask = (d["position"] != "G").to_numpy()
+    Z_out_cur = Z.loc[out_mask, SIM_FEATURES].to_numpy(dtype=np.float32)
+    X_out_train = Z_out_cur
+    if hist_df is not None and not hist_df.empty:
+        h_out = hist_df[hist_df["position"].isin(["D", "M", "F"])].copy()
+        avail = [c for c in SIM_FEATURES if c in h_out.columns]
+        if len(avail) == len(SIM_FEATURES) and len(h_out) >= 200:
+            if "minutes" in h_out.columns:
+                h_out = h_out[h_out["minutes"] >= 600].copy()
+            Z_hist_out = (
+                h_out.groupby("position")[SIM_FEATURES]
+                .transform(lambda s: (s - s.mean()) / (s.std() or 1.0))
+                .fillna(0.0)
+                .clip(-4.5, 4.5)
+                .to_numpy(dtype=np.float32)
+            )
+            X_out_train = np.vstack([Z_hist_out, np.clip(Z_out_cur, -4.5, 4.5)])
+
+    emb_out, out_recon_r2 = _fit_ae(X_out_train, np.clip(Z_out_cur, -4.5, 4.5), hidden_dim=32, latent_dim=16, epochs=40)
+
+    # 2. Goalkeeper Autoencoder (trained on Big-5 historical GK seasons + current GKs)
+    gk_mask = (d["position"] == "G").to_numpy()
+    Z_gk_cur = Z.loc[gk_mask, GK_SIM_FEATURES].to_numpy(dtype=np.float32)
+    X_gk_cur = np.clip(Z_gk_cur, -4.5, 4.5)
+    X_gk_train = X_gk_cur
+    if gk_hist_df is not None and not gk_hist_df.empty:
+        avail_gk = [c for c in GK_SIM_FEATURES if c in gk_hist_df.columns]
+        if len(avail_gk) == len(GK_SIM_FEATURES) and len(gk_hist_df) >= 50:
+            h_gk = gk_hist_df[gk_hist_df["minutes"] >= 600].copy() if "minutes" in gk_hist_df.columns else gk_hist_df.copy()
+            Z_hist_gk = h_gk[GK_SIM_FEATURES].apply(lambda s: (s - s.mean()) / (s.std() or 1.0)).fillna(0.0)
+            if "goals_conceded_p90" in Z_hist_gk.columns:
+                Z_hist_gk["goals_conceded_p90"] = -Z_hist_gk["goals_conceded_p90"]
+            X_gk_train = np.vstack([Z_hist_gk.clip(-4.5, 4.5).to_numpy(dtype=np.float32), X_gk_cur])
+
+    emb_gk, gk_recon_r2 = _fit_ae(X_gk_train, X_gk_cur, hidden_dim=16, latent_dim=8, epochs=60)
+
+    # Build unified 299 x 299 neural similarity matrix (0 cross-regime similarity between GK and outfield)
+    n_tot = len(d)
+    S_neural = np.zeros((n_tot, n_tot), dtype=np.float64)
+    out_idx = np.flatnonzero(out_mask)
+    gk_idx = np.flatnonzero(gk_mask)
+    if len(out_idx):
+        S_out = cosine_similarity(emb_out)
+        S_neural[np.ix_(out_idx, out_idx)] = S_out
+    if len(gk_idx):
+        S_gk = cosine_similarity(emb_gk)
+        S_neural[np.ix_(gk_idx, gk_idx)] = S_gk
+
+    meta = {
+        "architecture": "PyTorch Denoising Autoencoder (LayerNorm + GELU + Dropout 0.15)",
+        "outfield_dims": f"{len(SIM_FEATURES)} → 32 → 16 → 32 → {len(SIM_FEATURES)}",
+        "gk_dims": f"{len(GK_SIM_FEATURES)} → 16 → 8 → 16 → {len(GK_SIM_FEATURES)}",
+        "outfield_train_seasons": int(len(X_out_train)),
+        "gk_train_seasons": int(len(X_gk_train)),
+        "outfield_recon_r2": out_recon_r2,
+        "gk_recon_r2": gk_recon_r2,
+    }
+    log(
+        f"Trained PyTorch Denoising Autoencoder: outfield {meta['outfield_train_seasons']} seasons "
+        f"(Recon R²={out_recon_r2:.3f}) | GK {meta['gk_train_seasons']} seasons (Recon R²={gk_recon_r2:.3f})"
+    )
+    return {"S_neural": S_neural, "emb_out": emb_out, "emb_gk": emb_gk, "meta": meta}

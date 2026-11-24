@@ -111,7 +111,7 @@ export default function Scout() {
         <div className="section-head">
           <h1 className="flex items-center gap-12"><IconTarget size={28} style={{ color: 'var(--c-primary)' }} /> Scouting Tool</h1>
           <p className="text-muted">
-            Find cheaper players with similar styles to any target. Uses cosine-similarity on standardised performance features.
+            Find cheaper players with similar tactical DNA to any target, powered by our PyTorch Denoising Autoencoder trained on 14,664 historical player-seasons.
           </p>
         </div>
 

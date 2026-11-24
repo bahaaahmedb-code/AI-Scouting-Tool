@@ -788,13 +788,83 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
         X_q = _encode_ml(df_q)[ml_feats]
         return np.clip(0.65 * gbr.predict(X_q) + 0.35 * rdg.predict(X_q), 15.0, 99.0)
 
-    # 1) Build historical (t -> t+h) training pairs from our 299 EPL players' subrole-consistent seasons
-    #    (keeps the exact same Role Index scale and EPL starter distribution — no Big-5 league shift).
+    def _seq_vec(season_entry: dict, pos_c: str) -> list[float]:
+        return [
+            float(season_entry["role_index"]) / 100.0,
+            float(season_entry["age"]) / 40.0,
+            min(1.0, float(season_entry["minutes"]) / 3420.0),
+            1.0 if pos_c == "G" else 0.0,
+            1.0 if pos_c == "D" else 0.0,
+            1.0 if pos_c == "M" else 0.0,
+            1.0 if pos_c == "F" else 0.0,
+        ]
+
+    def _build_seq_window(tl: list[dict], end_idx: int, pos_c: str) -> np.ndarray:
+        win = tl[max(0, end_idx - 2): end_idx + 1]
+        vecs = [_seq_vec(w, pos_c) for w in win]
+        while len(vecs) < 3:
+            vecs.insert(0, vecs[0])
+        return np.array(vecs, dtype=np.float32)
+
+    def _fit_gru(seqs: np.ndarray, hs: np.ndarray, ys: np.ndarray, epochs: int = 90):
+        try:
+            import torch
+            import torch.nn as nn
+        except ImportError:
+            return None
+
+        torch.manual_seed(42)
+
+        class TrajectoryGRU(nn.Module):
+            def __init__(self, in_dim: int = 7, hidden: int = 24):
+                super().__init__()
+                self.gru = nn.GRU(in_dim, hidden, batch_first=True)
+                self.head = nn.Sequential(
+                    nn.Linear(hidden + 1, 16),
+                    nn.GELU(),
+                    nn.Dropout(0.10),
+                    nn.Linear(16, 1),
+                )
+
+            def forward(self, x_seq, h_norm):
+                _, h_n = self.gru(x_seq)
+                feat = torch.cat([h_n.squeeze(0), h_norm], dim=-1)
+                return self.head(feat).squeeze(-1) * 100.0
+
+        mdl = TrajectoryGRU()
+        opt = torch.optim.AdamW(mdl.parameters(), lr=4e-3, weight_decay=2e-4)
+        loss_fn = nn.SmoothL1Loss(beta=5.0)
+        tx = torch.tensor(seqs, dtype=torch.float32)
+        th = torch.tensor((hs / 3.0).reshape(-1, 1), dtype=torch.float32)
+        ty = torch.tensor(ys, dtype=torch.float32)
+
+        mdl.train()
+        for _ in range(epochs):
+            opt.zero_grad()
+            pred = mdl(tx, th)
+            loss = loss_fn(pred, ty)
+            loss.backward()
+            opt.step()
+        mdl.eval()
+        return mdl
+
+    def _pred_gru(mdl, seq: np.ndarray, h_step: int) -> float | None:
+        if mdl is None:
+            return None
+        import torch
+        with torch.no_grad():
+            tx = torch.tensor(seq[None, :, :], dtype=torch.float32)
+            th = torch.tensor([[h_step / 3.0]], dtype=torch.float32)
+            return float(np.clip(mdl(tx, th).item(), 15.0, 99.0))
+
+    # 1) Build historical (t -> t+h) training pairs + 3-step sequence windows from our 299 EPL players
     pair_rows: list[tuple] = []
+    pair_seqs: list[np.ndarray] = []
     for pid_k, p_obj in player_projections.items():
         tl_obs = (p_obj.get("history") or []) + [p_obj["current"]]
         pc = p_obj["position"]
         for a_i in range(len(tl_obs)):
+            seq_a = _build_seq_window(tl_obs, a_i, pc)
             for b_i in range(a_i + 1, len(tl_obs)):
                 h_gap = int(tl_obs[b_i]["season_end_year"]) - int(tl_obs[a_i]["season_end_year"])
                 if h_gap in (1, 2, 3):
@@ -809,25 +879,36 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
                         float(tl_obs[a_i]["role_index"]),
                         float(tl_obs[b_i]["role_index"]),
                     ))
+                    pair_seqs.append(seq_a)
 
     pairs_df = pd.DataFrame(pair_rows, columns=["pid", "y0", "y1", "h", "pos", "age", "mins", "r0", "r1"])
+    seqs_arr = np.stack(pair_seqs) if pair_seqs else np.zeros((0, 3, 7), dtype=np.float32)
 
     if len(pairs_df) >= 80:
-        # Fit strictly leak-free Player-Grouped 5-Fold models (a player is NEVER in their own training fold)
+        # Fit strictly leak-free Player-Grouped 5-Fold models (GBR+Ridge + PyTorch TrajectoryGRU)
         # AND temporal walk-forward models (y1 < 2026) for 2025-26 out-of-sample evaluation.
         from sklearn.model_selection import GroupKFold
         gkf = GroupKFold(n_splits=5)
         fold_models: dict[int, tuple] = {}
+        fold_gru: dict[int, object] = {}
         unique_pids = pairs_df["pid"].values
+        hs_all = pairs_df["h"].to_numpy(dtype=np.float32)
+        ys_all = pairs_df["r1"].to_numpy(dtype=np.float32)
         for tr_idx, va_idx in gkf.split(pairs_df, groups=unique_pids):
             mdl_f = _fit_forecaster(pairs_df.iloc[tr_idx])
+            gru_f = _fit_gru(seqs_arr[tr_idx], hs_all[tr_idx], ys_all[tr_idx])
             for va_pid in np.unique(unique_pids[va_idx]):
                 fold_models[int(va_pid)] = mdl_f
-        wf_2026_models = _fit_forecaster(pairs_df[pairs_df["y1"] < 2026])
+                fold_gru[int(va_pid)] = gru_f
+        wf_mask = (pairs_df["y1"] < 2026).to_numpy()
+        wf_2026_models = _fit_forecaster(pairs_df.loc[wf_mask])
+        wf_2026_gru = _fit_gru(seqs_arr[wf_mask], hs_all[wf_mask], ys_all[wf_mask])
         full_models = _fit_forecaster(pairs_df)
+        full_gru = _fit_gru(seqs_arr, hs_all, ys_all)
 
         bt_errors_by_h = {1: [], 2: [], 3: []}
         bt_all_pred = []
+        bt_all_gru = []
         bt_all_act = []
 
         for pid, p_obj in player_projections.items():
@@ -835,10 +916,12 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
             hist_list = p_obj.get("history") or []
             cur_e = p_obj["current"]
             fut_list = p_obj.get("future") or []
+            tl_obs = hist_list + [cur_e]
 
             if len(hist_list) >= 1:
                 anc = hist_list[0]
                 anc_yr = int(anc["season_end_year"])
+                anc_seq = _build_seq_window(tl_obs, 0, pos)
                 actual_by_yr = {int(h["season_end_year"]): float(h["role_index"]) for h in hist_list}
                 actual_by_yr[2026] = float(cur_e["role_index"])
                 season_lbl_by_yr = {int(h["season_end_year"]): h["season"] for h in hist_list}
@@ -855,20 +938,24 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
                 p_abs_errs = []
                 for h_step in range(1, 2026 - anc_yr + 1):
                     t_yr = anc_yr + h_step
-                    # Strictly leak-free: temporal walk-forward for 2025-26, player-grouped OOF for 2023-24/2024-25
                     mdl = wf_2026_models if t_yr == 2026 else fold_models.get(int(pid))
+                    gru_m = wf_2026_gru if t_yr == 2026 else fold_gru.get(int(pid))
                     if mdl is None:
                         continue
                     q_df = pd.DataFrame([{
                         "h": h_step, "pos": pos, "age": float(anc["age"]),
                         "mins": float(anc["minutes"]), "r0": float(anc["role_index"]),
                     }])
-                    pred_ri = round(float(_pred_forecaster(mdl, q_df)[0]), 1)
+                    tab_pred = float(_pred_forecaster(mdl, q_df)[0])
+                    gru_pred = _pred_gru(gru_m, anc_seq, h_step)
+                    pred_ri = round(0.40 * gru_pred + 0.60 * tab_pred, 1) if gru_pred is not None else round(tab_pred, 1)
                     act_ri = actual_by_yr.get(t_yr)
                     err = round(pred_ri - act_ri, 1) if act_ri is not None else None
                     if err is not None:
                         p_abs_errs.append(abs(err))
                         bt_all_pred.append(pred_ri)
+                        if gru_pred is not None:
+                            bt_all_gru.append(gru_pred)
                         bt_all_act.append(act_ri)
                         if h_step in bt_errors_by_h:
                             bt_errors_by_h[h_step].append(abs(err))
@@ -892,11 +979,14 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
             cur_ri = float(cur_e["role_index"])
             cur_age = float(cur_e["age"])
             cur_mins = float(cur_e["minutes"])
+            cur_seq = _build_seq_window(tl_obs, len(tl_obs) - 1, pos)
             for step_idx, f_item in enumerate(fut_list, start=1):
                 q_fut = pd.DataFrame([{
                     "h": step_idx, "pos": pos, "age": cur_age, "mins": cur_mins, "r0": cur_ri,
                 }])
-                ml_ri = float(_pred_forecaster(full_models, q_fut)[0])
+                tab_ri = float(_pred_forecaster(full_models, q_fut)[0])
+                gru_ri = _pred_gru(full_gru, cur_seq, step_idx)
+                ml_ri = (0.40 * gru_ri + 0.60 * tab_ri) if gru_ri is not None else tab_ri
                 curve_ri = float(f_item["role_index"])
                 blended_ri = round(0.65 * ml_ri + 0.35 * curve_ri, 1)
                 f_item["role_index"] = blended_ri
@@ -909,9 +999,11 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
 
     bt_corr = float(np.corrcoef(bt_all_pred, bt_all_act)[0, 1]) if len(bt_all_pred) >= 10 else None
     bt_abs_all = [abs(p - a) for p, a in zip(bt_all_pred, bt_all_act)]
+    gru_mae = round(float(np.mean([abs(g - a) for g, a in zip(bt_all_gru, bt_all_act)])), 1) if len(bt_all_gru) == len(bt_all_act) and bt_all_gru else None
+    gru_r = round(float(np.corrcoef(bt_all_gru, bt_all_act)[0, 1]), 3) if len(bt_all_gru) == len(bt_all_act) and len(bt_all_gru) >= 10 else None
     backtest_summary = {
-        "model": "Walk-Forward GBR + Ridge Ensemble (leak-free)",
-        "train_cutoff": "Expanding window (y < target season)",
+        "model": "PyTorch TrajectoryGRU + GBR + Ridge Ensemble (leak-free)",
+        "train_cutoff": "Expanding window + Player-Grouped 5-Fold CV",
         "eval_window": "2023-24 to 2025-26",
         "n_players": sum(1 for p in player_projections.values() if p.get("backtest")),
         "n_player_seasons": len(bt_abs_all),
@@ -921,6 +1013,8 @@ def build_aging_projections(d: pd.DataFrame, pipe, data_path: Path, log=print, h
         "mae_3y": round(float(np.mean(bt_errors_by_h[3])), 1) if bt_errors_by_h[3] else None,
         "correlation_r": round(bt_corr, 3) if bt_corr is not None and not np.isnan(bt_corr) else None,
         "within_10pts_pct": round(100.0 * sum(1 for e in bt_abs_all if e <= 10.0) / len(bt_abs_all), 1) if bt_abs_all else None,
+        "gru_standalone_mae": gru_mae,
+        "gru_standalone_r": gru_r,
     }
     for p_obj in player_projections.values():
         p_obj["league_backtest"] = backtest_summary

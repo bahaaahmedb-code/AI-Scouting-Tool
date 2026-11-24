@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "built_at": "2026-11-19T14:02:31+00:00",
+  "built_at": "2026-11-24T11:51:36+00:00",
   "settings": {
     "data_dir": "data/raw",
     "kaggle_file": "premier_league_complete_stats_until31thGameDayOnSeason2025-26.csv",
@@ -33,7 +33,7 @@
     "kaggle": "3922036ef28c",
     "fbref": "8b02a787d712"
   },
-  "build_seconds": 26.1,
+  "build_seconds": 51.6,
   "cv_results": {
     "Linear Regression (baseline)": {
       "cv_r2_mean": 0.765,

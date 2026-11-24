@@ -156,11 +156,12 @@ def scout(request: Request, target: int = Query(..., ge=0),
           max_pct: float = Query(60, ge=5, le=500),
           max_age: int | None = Query(None, ge=16, le=45),
           min_age: int | None = Query(None, ge=16, le=45),
-          n: int = Query(10, ge=1, le=50)):
+          n: int = Query(10, ge=1, le=50),
+          method: Literal["cosine", "neural"] = "neural"):
     _player(target)
     q = ScoutQuery(target=target, same_position=position_mode == "same",
                    position=position_mode if position_mode in ("G", "D", "M", "F") else None,
-                   max_pct=max_pct, max_age=max_age, min_age=min_age, n=n)
+                   max_pct=max_pct, max_age=max_age, min_age=min_age, n=n, method=method)
     return S().scout(q)
 
 

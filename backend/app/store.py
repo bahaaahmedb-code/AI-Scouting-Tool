@@ -358,7 +358,8 @@ class Store:
 
     # ------------------------------------------------------------------ scouting / similarity
     def scout(self, q: ScoutQuery) -> dict:
-        res = scout(self.d, self.Z, self.S, q)
+        S_mat = self.b.get("S_neural") if (getattr(q, "method", "neural") == "neural" and self.b.get("S_neural") is not None) else self.S
+        res = scout(self.d, self.Z, S_mat, q)
         t = q.target
         zt = self.Z.iloc[t]
         t_pos = self.d.at[t, "position"]
@@ -368,6 +369,8 @@ class Store:
                                                          for f in zt_sub.sort_values(ascending=False).index[:3]]}
         res["target_value_eur"] = float(self.d.at[t, "oof_value_eur"])
         res["max_value_eur"] = res["target_value_eur"] * q.max_pct / 100 if q.max_pct is not None else None
+        res["method"] = "neural" if (getattr(q, "method", "neural") == "neural" and self.b.get("S_neural") is not None) else "cosine"
+        res["neural_meta"] = self.b.get("neural_meta")
         res["query"] = {k: v for k, v in q.__dict__.items() if k != "exclude"}
         for row in res["results"]:
             row.update({k: v for k, v in self.summary(row["id"]).items() if k != "id"})

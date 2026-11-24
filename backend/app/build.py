@@ -21,7 +21,7 @@ from .constants import GK_FEATURES, GK_NUM_FEATURES, NUM_FEATURES, PERF_GROUPS, 
 from .data import load_and_prepare
 from .features import attach_target, build_features
 from .model import compute_shap, oof_estimates, train_and_compare, train_goalkeepers
-from .similarity import position_zscores, radar_percentiles, similarity_matrix
+from .similarity import position_zscores, radar_percentiles, similarity_matrix, train_neural_embeddings
 from .aging import build_aging_projections
 from .multiseason import blend_multiseason, calibrate_history, load_gk_history, load_history
 
@@ -90,6 +90,7 @@ def build(settings=None, verbose: bool = True) -> dict:
 
     Z = position_zscores(d)
     S = similarity_matrix(Z)
+    neural_sim = train_neural_embeddings(d, Z, hist_df=hist_cal, gk_hist_df=gk_hist, log=log)
     all_num_feats = list(dict.fromkeys(NUM_FEATURES + GK_NUM_FEATURES))
     pct_in_pos = d.groupby("position")[all_num_feats].rank(pct=True) * 100
     radar_pct = radar_percentiles(d)
@@ -170,6 +171,8 @@ def build(settings=None, verbose: bool = True) -> dict:
         "shap_feat": shap_feat, "imp_feat": imp_feat, "mean_abs": mean_abs,
         "perf_feats": [f for f in imp_feat.index if group_of(f) in PERF_GROUPS],
         "Z": Z, "S": S, "pct_in_pos": pct_in_pos, "radar_pct": radar_pct,
+        "S_neural": neural_sim["S_neural"] if neural_sim is not None else None,
+        "neural_meta": neural_sim["meta"] if neural_sim is not None else None,
         "aging": aging_data, "multiseason": ms_info,
         "base_eur": float(np.exp(sh["base"].mean())),
         "build_seconds": round(time.time() - t0, 1),
