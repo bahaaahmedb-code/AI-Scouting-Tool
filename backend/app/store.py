@@ -96,6 +96,48 @@ class Store:
     def meta(self) -> dict:
         d = self.d
         res = self.results.copy()
+        aging_players = (self.b.get("aging") or {}).get("players") or {}
+        aging_meta = (self.b.get("aging") or {}).get("meta") or {}
+        age_buckets: dict[int, dict[str, list[float]]] = {}
+        for pid_k, pr in aging_players.items():
+            pos_c = pr.get("position")
+            if pos_c not in ("G", "D", "M", "F"):
+                continue
+            for pt in (pr.get("history") or []) + [pr.get("current")] + (pr.get("future") or []):
+                if not pt or pt.get("age") is None or pt.get("role_index") is None:
+                    continue
+                ag = int(pt["age"])
+                if 18 <= ag <= 35:
+                    age_buckets.setdefault(ag, {}).setdefault(pos_c, []).append(float(pt["role_index"]))
+        aging_curves = []
+        for ag in sorted(age_buckets):
+            row_c: dict[str, float | int] = {"age": ag}
+            for pos_c in ("G", "D", "M", "F"):
+                vals = age_buckets[ag].get(pos_c) or []
+                if len(vals) >= 2:
+                    row_c[pos_c] = round(float(np.mean(vals)), 1)
+            if len(row_c) > 1:
+                aging_curves.append(row_c)
+
+        pos_accuracy = []
+        for pos_c in ("F", "M", "D", "G"):
+            sub_p = d[d["position"] == pos_c]
+            if len(sub_p) >= 2:
+                yt = np.log(sub_p["market_value_eur"].to_numpy(dtype=float))
+                yp = np.log(sub_p["oof_value_eur"].to_numpy(dtype=float))
+                ss_tot = float(np.sum((yt - yt.mean()) ** 2)) or 1.0
+                r2_p = 1.0 - float(np.sum((yt - yp) ** 2)) / ss_tot
+                med_pct_p = float(np.median(np.abs(sub_p["oof_value_eur"] - sub_p["market_value_eur"]) / sub_p["market_value_eur"]) * 100.0)
+                mae_m_p = float(np.mean(np.abs(sub_p["oof_value_eur"] - sub_p["market_value_eur"])) / 1e6)
+                pos_accuracy.append({
+                    "position": pos_c,
+                    "label": POS_NAME[pos_c],
+                    "n": int(len(sub_p)),
+                    "r2": round(r2_p, 3),
+                    "med_abs_pct": round(med_pct_p, 1),
+                    "mae_m": round(mae_m_p, 2),
+                })
+
         return {
             "season": self.b["settings"]["season"], "kaggle_matchday": self.b["settings"]["kaggle_matchday"],
             "n_players": self.n, "by_position": {POS_NAME[k]: int(v) for k, v in d["position"].value_counts().items()},
@@ -115,6 +157,10 @@ class Store:
             "gk_radar": [{"key": k, "label": l} for k, l in zip(GK_RADAR, GK_RADAR_LABELS)],
             "gk_model": {k: _f(v, 4) for k, v in (self.b.get("gk_model") or {}).items() if k in ("cv_r2", "cv_rmse_log")},
             "nation_groups": self.b["feat_info"]["top_nations"] + ["OTHER"],
+            "aging_curves": aging_curves,
+            "backtest_summary": aging_meta.get("backtest_summary"),
+            "peak_windows": aging_meta.get("peak_windows"),
+            "position_accuracy": pos_accuracy,
         }
 
     # ------------------------------------------------------------------ players

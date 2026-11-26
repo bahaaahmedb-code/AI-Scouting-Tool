@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, ReferenceLine,
-  ScatterChart, Scatter, CartesianGrid, Legend,
+  ScatterChart, Scatter, CartesianGrid, Legend, LineChart, Line,
 } from 'recharts'
 import {
   getMeta, getPlayers, getGlobalImportance, getDependence, getShap, getRadar,
@@ -117,6 +117,8 @@ export default function Dashboard() {
   const [selected, setSelected] = useState(null)
   const [drillPos, setDrillPos] = useState('')
   const [waterfall, setWaterfall] = useState(null)
+  const [gapPos, setGapPos] = useState('')
+  const [posAccMetric, setPosAccMetric] = useState('r2')
   // radar panel (independent of the waterfall)
   const [radPos, setRadPos] = useState('')
   const [radA, setRadA] = useState(null)
@@ -209,6 +211,25 @@ export default function Dashboard() {
 
   const modelRows = useMemo(() => (meta?.cv_results ?? [])
     .map(r => ({ ...r, v: r[modelMetric] })), [meta, modelMetric])
+
+  const valueGapRows = useMemo(() => {
+    const withGap = players
+      .filter(p => p.listed_value_eur && p.estimated_value_eur)
+      .filter(p => !gapPos || p.position === gapPos)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        club: p.club,
+        position: p.position,
+        age: p.age,
+        listedM: p.listed_value_eur / 1e6,
+        estM: p.estimated_value_eur / 1e6,
+        gapM: Number(((p.estimated_value_eur - p.listed_value_eur) / 1e6).toFixed(1)),
+      }))
+    const topUnder = [...withGap].filter(r => r.gapM > 0).sort((a, b) => b.gapM - a.gapM).slice(0, 6)
+    const topOver = [...withGap].filter(r => r.gapM < 0).sort((a, b) => a.gapM - b.gapM).slice(0, 6)
+    return [...topUnder, ...topOver.reverse()]
+  }, [players, gapPos])
 
   if (loading) return <main className="page"><div className="container"><PageLoading /></div></main>
   if (error) return <main className="page"><div className="container"><ErrorBox message={error} /></div></main>
@@ -459,6 +480,134 @@ export default function Dashboard() {
             </div>
           )}
         </Panel>
+
+        {/* Positional Aging Curves (#3) + Biggest Moneyball Value Gaps (#4) */}
+        <div className="grid-2" style={{ marginTop: 24, gap: 24, alignItems: 'stretch' }}>
+          <Panel
+            title="Positional aging curves (Role Index by age)"
+            sub="League-average Role Performance Index across ages 18–35 from the TrajectoryGRU + aging model."
+          >
+            <div style={{ height: 320 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={meta?.aging_curves ?? []} margin={{ top: 10, right: 16, bottom: 10, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--c-border)" />
+                  <XAxis dataKey="age" tick={AXIS} />
+                  <YAxis domain={[35, 85]} tick={AXIS} />
+                  <Tooltip
+                    contentStyle={TIP}
+                    labelFormatter={ag => `Age ${ag}`}
+                    formatter={(val, name) => [`${val} / 100`, name]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '0.76rem', paddingTop: 6 }} />
+                  <Line type="monotone" dataKey="F" name="Forwards (Peak 24–28)" stroke={POS_COLOR.F} strokeWidth={2.5} dot={false} connectNulls />
+                  <Line type="monotone" dataKey="M" name="Midfielders (Peak 25–29)" stroke={POS_COLOR.M} strokeWidth={2.5} dot={false} connectNulls />
+                  <Line type="monotone" dataKey="D" name="Defenders (Peak 26–30)" stroke={POS_COLOR.D} strokeWidth={2.5} dot={false} connectNulls />
+                  <Line type="monotone" dataKey="G" name="Goalkeepers (Peak 27–33)" stroke={POS_COLOR.G} strokeWidth={2.5} dot={false} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            {meta?.backtest_summary && (
+              <div className="text-muted mt-8" style={{ fontSize: '0.76rem', fontFamily: 'var(--font-mono)' }}>
+                Leak-Free Backtest ({meta.backtest_summary.n_players} players): 1Y ±{meta.backtest_summary.mae_1y} · 2Y ±{meta.backtest_summary.mae_2y} · 3Y ±{meta.backtest_summary.mae_3y} pts · r = {meta.backtest_summary.correlation_r}
+              </div>
+            )}
+          </Panel>
+
+          <Panel
+            title="Biggest Moneyball value gaps"
+            sub="Top undervalued bargains (green) vs. overvalued stars (red). Click any bar to inspect SHAP below."
+            controls={<Chips options={POS} value={gapPos} onChange={setGapPos} idPrefix="dash-gap-pos" />}
+          >
+            <div style={{ height: Math.max(360, valueGapRows.length * 32 + 36) }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={valueGapRows} layout="vertical" barCategoryGap="26%" margin={{ left: 8, right: 20, top: 8, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--c-border)" />
+                  <XAxis type="number" tick={AXIS} tickFormatter={v => `${v >= 0 ? '+' : ''}£${v}m`} />
+                  <YAxis type="category" dataKey="name" width={165} tick={{ fill: 'var(--c-text)', fontSize: 11.5 }} interval={0} />
+                  <ReferenceLine x={0} stroke="gray" strokeDasharray="4 4" />
+                  <Tooltip
+                    contentStyle={TIP}
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                    content={({ payload }) => {
+                      const p = payload?.[0]?.payload
+                      if (!p) return null
+                      return (
+                        <div style={{ ...TIP, padding: 10 }}>
+                          <strong>{p.name}</strong>
+                          <div className="text-muted">{p.club} · {POS_NAME[p.position]} · {p.age}y</div>
+                          <div>Model Est: £{fmtNum(p.estM, 1)}m · Market: £{fmtNum(p.listedM, 1)}m</div>
+                          <div style={{ color: p.gapM >= 0 ? '#4ade80' : '#fb7185', fontWeight: 700 }}>
+                            Gap: {p.gapM >= 0 ? '+' : '−'}£{fmtNum(Math.abs(p.gapM), 1)}m
+                          </div>
+                        </div>
+                      )
+                    }}
+                  />
+                  <Bar dataKey="gapM" radius={[0, 4, 4, 0]} cursor="pointer" onClick={d => pickPlayer(d.id)}>
+                    {valueGapRows.map((r, i) => (
+                      <Cell key={r.id ?? i} fill={r.gapM >= 0 ? '#22c55e' : '#f43f5e'} opacity={0.88} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Panel>
+        </div>
+
+        {/* Model accuracy by position */}
+        {meta?.position_accuracy?.length > 0 && (
+          <Panel
+            style={{ marginTop: 24 }}
+            title="Model accuracy by position (out-of-fold)"
+            sub="How accurately the valuation pipelines predict unseen players across Goalkeepers, Defenders, Midfielders, and Forwards."
+            controls={
+              <Chips
+                idPrefix="dash-pos-acc"
+                value={posAccMetric}
+                onChange={setPosAccMetric}
+                options={[
+                  { value: 'r2', label: 'Out-of-Fold R² (higher is better)' },
+                  { value: 'med_abs_pct', label: 'Median Abs. % Error (lower is better)' },
+                ]}
+              />
+            }
+          >
+            <div style={{ height: 260 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={meta.position_accuracy} margin={{ top: 10, right: 24, bottom: 8, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--c-border)" />
+                  <XAxis dataKey="label" tick={AXIS} />
+                  <YAxis
+                    tick={AXIS}
+                    domain={posAccMetric === 'r2' ? [0, 1] : [0, 'auto']}
+                    tickFormatter={v => posAccMetric === 'r2' ? v.toFixed(2) : `${v}%`}
+                  />
+                  <Tooltip
+                    contentStyle={TIP}
+                    cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                    content={({ payload }) => {
+                      const r = payload?.[0]?.payload
+                      if (!r) return null
+                      return (
+                        <div style={{ ...TIP, padding: 10 }}>
+                          <strong>{r.label} (n = {r.n})</strong>
+                          <div>Out-of-Fold R²: <strong>{r.r2.toFixed(3)}</strong></div>
+                          <div>Median Abs. Error: <strong>{r.med_abs_pct.toFixed(1)}%</strong></div>
+                          <div>Mean Abs. Error: <strong>£{r.mae_m.toFixed(2)}m</strong></div>
+                        </div>
+                      )
+                    }}
+                  />
+                  <Bar dataKey={posAccMetric} radius={[6, 6, 0, 0]} maxBarSize={78}>
+                    {meta.position_accuracy.map(r => (
+                      <Cell key={r.position} fill={POS_COLOR[r.position] ?? '#3b82f6'} opacity={0.9} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Panel>
+        )}
 
         {/* Player drill-down */}
         <Panel
