@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { getPlayers, postScout } from '../api'
+import { getPlayer, getPlayers, postScout } from '../api'
 import { fmtValue, debounce, posClass } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, DataCaveat, RangeSlider } from '../components/UI'
 import { ShortlistBtn } from '../components/ShortlistDrawer'
@@ -22,6 +22,8 @@ export default function Scout() {
   const [targetSuggestions, setTargetSuggestions] = useState([])
   const [targetSearched, setTargetSearched] = useState(false)
   const [targetName, setTargetName] = useState('')
+  const skipNextSearch = useRef(false)
+  const targetParam = searchParams.get('target')
 
   const [posMode, setPosMode] = useState('same')
   const [maxPct, setMaxPct] = useState(60)
@@ -33,20 +35,27 @@ export default function Scout() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Pre-fill target from URL param
+  // Pre-fill target from URL param (?target=ID)
   useEffect(() => {
-    const tid = searchParams.get('target')
-    if (tid) {
-      setTargetId(tid)
-      // Fetch player name
-      import('../api').then(({ getPlayer }) => {
-        getPlayer(Number(tid)).then(p => setTargetName(p.player_name)).catch(() => {})
+    if (!targetParam) return
+    setTargetId(targetParam)
+    getPlayer(Number(targetParam))
+      .then(p => {
+        const nm = p.name ?? p.player_name ?? ''
+        if (nm) {
+          skipNextSearch.current = true
+          setTargetName(nm)
+          setTargetSearch(nm)
+          setTargetSuggestions([])
+          setTargetSearched(false)
+        }
       })
-    }
-  }, [])
+      .catch(() => {})
+  }, [targetParam])
 
   // Search for target player
   useEffect(() => {
+    if (skipNextSearch.current) return
     if (!targetSearch || targetSearch.length < 2) { setTargetSuggestions([]); setTargetSearched(false); return }
     const fn = debounce((q) => {
       getPlayers({ q, limit: 8 })
@@ -62,10 +71,13 @@ export default function Scout() {
   }, [targetSearch])
 
   function selectTarget(p) {
+    const nm = p.player_name ?? p.name ?? ''
+    skipNextSearch.current = true
     setTargetId(String(p.player_id ?? p.id))
-    setTargetName(p.player_name ?? p.name)
-    setTargetSearch('')
+    setTargetName(nm)
+    setTargetSearch(nm)
     setTargetSuggestions([])
+    setTargetSearched(false)
   }
 
   async function run() {
@@ -130,7 +142,10 @@ export default function Scout() {
                   className="input"
                   placeholder={targetName || 'Type player name…'}
                   value={targetSearch}
-                  onChange={e => setTargetSearch(e.target.value)}
+                  onChange={e => {
+                    skipNextSearch.current = false
+                    setTargetSearch(e.target.value)
+                  }}
                   aria-label="Search for target player"
                 />
                 {targetSuggestions.length > 0 && (
