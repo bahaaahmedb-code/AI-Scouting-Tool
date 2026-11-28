@@ -261,6 +261,14 @@ export function IconBook({ size = 18, style }) {
   )
 }
 
+export function IconStar({ size = 16, filled = false, style }) {
+  return (
+    <svg {...baseProps(size, style)} fill={filled ? 'currentColor' : 'none'}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  )
+}
+
 export function IconMedal({ rank = 1, size = 28 }) {
   const colors = {
     1: { fill: '#facc15', stroke: '#fde047', text: '#07100c' },

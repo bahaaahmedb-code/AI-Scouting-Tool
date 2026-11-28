@@ -4,7 +4,17 @@ import { getMeta, getClubAudit } from '../api'
 import { fmtValue } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, RangeSlider } from '../components/UI'
 import { ShortlistBtn } from '../components/ShortlistDrawer'
-import { IconStadium, IconTarget, IconAlert, IconShield, IconScale } from '../components/Icons'
+import { IconStadium, IconTarget, IconAlert, IconShield, IconScale, IconStar } from '../components/Icons'
+
+const MY_CLUB_STORAGE_KEY = 'moneyball_my_club'
+
+function readSavedClub() {
+  try {
+    return window.localStorage.getItem(MY_CLUB_STORAGE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
 
 function PitchPlayerCard({ player }) {
   const status = player.pitch_status || (
@@ -235,7 +245,8 @@ function VulnerabilityCard({ v, idx }) {
 export default function SquadAudit() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [clubs, setClubs] = useState([])
-  const [club, setClub] = useState(searchParams.get('club') || 'Liverpool')
+  const [myClub, setMyClub] = useState(() => readSavedClub())
+  const [club, setClub] = useState(() => searchParams.get('club') || readSavedClub() || 'Liverpool')
   const [audit, setAudit] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -264,6 +275,19 @@ export default function SquadAudit() {
     setSearchParams({ club: nextClub })
   }
 
+  function toggleMyClub() {
+    const next = myClub === club ? '' : club
+    setMyClub(next)
+    try {
+      if (next) window.localStorage.setItem(MY_CLUB_STORAGE_KEY, next)
+      else window.localStorage.removeItem(MY_CLUB_STORAGE_KEY)
+    } catch {
+      // Ignore storage errors in restricted environments
+    }
+  }
+
+  const isMyClub = Boolean(myClub && myClub === club)
+
   return (
     <main className="page animate-fade">
       <div className="container">
@@ -278,8 +302,8 @@ export default function SquadAudit() {
 
         {/* ── Controls ────────────────────────────────────────── */}
         <div className="card mb-24" style={{ padding: '20px 24px' }}>
-          <div className="flex gap-32 wrap items-center">
-            <div style={{ flex: '1 1 240px', maxWidth: 340 }}>
+          <div className="flex gap-20 wrap items-end">
+            <div style={{ flex: '1 1 240px', maxWidth: 320 }}>
               <label className="label mb-8" htmlFor="audit-club-select" style={{ display: 'block' }}>Select Premier League Club</label>
               <select
                 id="audit-club-select"
@@ -287,8 +311,34 @@ export default function SquadAudit() {
                 value={club}
                 onChange={e => changeClub(e.target.value)}
               >
-                {clubs.map(c => <option key={c} value={c}>{c}</option>)}
+                {clubs.map(c => (
+                  <option key={c} value={c}>
+                    {c === myClub ? `${c} (My Club)` : c}
+                  </option>
+                ))}
               </select>
+            </div>
+            <div className="flex gap-10 wrap items-center" style={{ paddingBottom: 2 }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${isMyClub ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={toggleMyClub}
+                title={isMyClub ? 'Saved as your default club — click to clear' : 'Load this club automatically whenever you open Squad Audit'}
+                style={isMyClub ? { fontWeight: 700 } : undefined}
+              >
+                <IconStar size={14} filled={isMyClub} />
+                {isMyClub ? 'My Club (Default)' : 'Set as My Club'}
+              </button>
+              {myClub && !isMyClub && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => changeClub(myClub)}
+                  title={`Switch back to your default club (${myClub})`}
+                >
+                  Back to {myClub}
+                </button>
+              )}
             </div>
             {audit && (
               <div style={{ marginLeft: 'auto', textAlign: 'right' }}>

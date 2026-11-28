@@ -398,7 +398,9 @@ tbody tr:hover { background: rgba(200,245,66,0.045); }
 /* ─── Flex utils ─────────────────────────────────────────────────────────────── */
 .flex        { display: flex; }
 .flex-col    { display: flex; flex-direction: column; }
+.items-start { align-items: flex-start; }
 .items-center{ align-items: center; }
+.items-end   { align-items: flex-end; }
 .justify-between { justify-content: space-between; }
 .justify-center  { justify-content: center; }
 .gap-4  { gap: 4px; }
