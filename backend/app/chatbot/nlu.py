@@ -526,6 +526,13 @@ CLUB_AGG_RE = re.compile(r"\bsquad values?\b|\bclub values?\b|\bteam values?\b|\
                          r"\brank (?:the )?(?:clubs?|teams?)\b|\bwhich (?:club|team|squad) (?:has|is) the (?:highest|most|lowest|best|strongest)\b|"
                          r"\b(?:team|club|squad) with the (?:best|strongest|highest|most valuable)\b|\b(?:best|strongest) (?:team|club|squad)\b|"
                          r"\bclubs? by team strength\b|\bstrongest (?:clubs?|teams?)\b|\blist (?:all )?(?:the )?clubs\b|\bhow many clubs\b")
+SQUAD_AUDIT_RE = re.compile(
+    r"\bsquad audit\b|\baudit\b|\bbest\s*xi\b|\bstarting\s*xi\b|\bstarting\s*11\b|\bstarting\s*eleven\b|"
+    r"\bweakest (?:unit|area|position|line|department|spot|link)\b|\bwhere (?:is|are) .* weak(?:est)?\b|"
+    r"\bwhat (?:does|do) .* need(?:s)? to (?:improve|upgrade|strengthen|sign|buy|replace)\b|"
+    r"\bwho should .* (?:replace|upgrade|sell|move on)\b|\bvulnerabilit(?:y|ies)\b|\bsquad needs?\b|\bsquad weaknesses?\b|"
+    r"\bteam (?:unit )?diagnostics?\b|\bunit rankings?\b|\bhow (?:is|are) .* squad\b"
+)
 POS_AGG_RE = re.compile(r"\baverage value by position\b|\bvalue by position\b|\bcompare (?:the )?positions\b|"
                         r"\bposition averages?\b|\bwhich position is (?:worth|valued) (?:the )?(?:most|highest|least)\b")
 SCATTER_RE = re.compile(r"\blisted vs\.? (?:model[- ]?)?estimated\b|\bestimated vs\.? listed\b|"

@@ -15,6 +15,7 @@ import {
 } from '../components/Icons'
 
 const SUGGESTIONS = [
+  'Audit Liverpool\'s squad and highlight their weakest unit',
   'What is the best attacker to buy in the range of 35 million to 55 million?',
   'Who are the most undervalued midfielders?',
   'What are Bukayo Saka\'s strengths and weaknesses?',
@@ -22,7 +23,6 @@ const SUGGESTIONS = [
   'Find me cheap alternatives to the highest-valued forward',
   'Show radar for Joao Pedro and Viktor Gyokeres',
   'How does the model work?',
-  'What are the limitations of the model?',
 ]
 
 const INTENT_LABELS = {
@@ -33,6 +33,7 @@ const INTENT_LABELS = {
   ranking: 'Ranking',
   whatif: 'What-If',
   projection: 'Aging & Contract Advisor',
+  squad_audit: 'Squad Audit',
   glossary: 'Glossary',
   howto: 'Guide',
   data_quality: 'Dataset',

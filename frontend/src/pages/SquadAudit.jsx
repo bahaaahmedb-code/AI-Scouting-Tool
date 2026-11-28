@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { getMeta, getClubAudit } from '../api'
 import { fmtValue } from '../utils'
 import { PageLoading, ErrorBox, PosChip, Disclaimer, RangeSlider } from '../components/UI'
 import { ShortlistBtn } from '../components/ShortlistDrawer'
-import { IconStadium, IconTarget, IconAlert, IconShield, IconScale, IconStar } from '../components/Icons'
+import PlayerAvatar from '../components/PlayerAvatar'
+import { IconStadium, IconTarget, IconAlert, IconShield, IconScale, IconStar, IconDownload } from '../components/Icons'
 
 const MY_CLUB_STORAGE_KEY = 'moneyball_my_club'
 
@@ -61,6 +63,9 @@ function PitchPlayerCard({ player }) {
         }}>
           {player.age}y
         </span>
+      </div>
+      <div style={{ margin: '2px 0' }}>
+        <PlayerAvatar name={player.name} size={46} radius={999} />
       </div>
       <div style={{
         fontWeight: 700, fontSize: '0.84rem', color: 'var(--c-text)',
@@ -288,6 +293,67 @@ export default function SquadAudit() {
 
   const isMyClub = Boolean(myClub && myClub === club)
 
+  function handleExportAuditCsv() {
+    if (!audit) return
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const vulns = audit.vulnerabilities || []
+    let lines = []
+    if (vulns.length > 0) {
+      lines.push([
+        'Club', 'Priority', 'Category', 'Flagged Starter', 'Position', 'Starter Age',
+        'Starter Role Index', 'Starter Est. Value (EUR)', 'Contract Rec', 'Flag Reasons',
+        'Replacement Target', 'Target Club', 'Target Age', 'Tactical Fit (%)',
+        'Target Role Index', 'Target Est. Value (EUR)', 'Est. Value Savings (EUR)',
+      ].join(','))
+      vulns.forEach(v => {
+        const st = v.starter
+        const reasonsStr = (v.reasons || []).join('; ')
+        const recs = (v.replacements && v.replacements.length > 0) ? v.replacements : [null]
+        recs.forEach(r => {
+          lines.push([
+            esc(audit.club),
+            esc(v.priority),
+            esc(v.category || `${v.priority} Priority`),
+            esc(st.name),
+            esc(st.position === 'G' ? 'GK' : st.position),
+            st.age ?? '',
+            st.role_index ?? '',
+            Math.round(st.estimated_value_eur || 0),
+            esc(st.recommended_years || ''),
+            esc(reasonsStr),
+            r ? esc(r.name) : '""',
+            r ? esc(r.club) : '""',
+            r ? (r.age ?? '') : '',
+            r ? (r.similarity != null ? (r.similarity * 100).toFixed(1) : '') : '',
+            r ? (r.role_index ?? '') : '',
+            r ? Math.round(r.estimated_value_eur || 0) : '',
+            r ? Math.round(r.savings_vs_starter_eur || 0) : '',
+          ].join(','))
+        })
+      })
+    } else {
+      lines.push('Club,Role,Player,Position,Age,Role Index,Est. Value (EUR),Listed Value (EUR),Contract Rec')
+      ;(audit.starters || []).forEach(p => {
+        lines.push([
+          esc(audit.club), 'Best XI', esc(p.name), esc(p.position === 'G' ? 'GK' : p.position),
+          p.age ?? '', p.role_index ?? '', Math.round(p.estimated_value_eur || 0),
+          Math.round(p.listed_value_eur || 0), esc(p.recommended_years || ''),
+        ].join(','))
+      })
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const slug = String(audit.club || 'club').toLowerCase().replace(/[^a-z0-9]+/g, '_')
+    a.download = `${slug}_squad_audit_2025_26.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast.success(`Exported ${audit.club} Squad Audit CSV`)
+  }
+
   return (
     <main className="page animate-fade">
       <div className="container">
@@ -341,11 +407,21 @@ export default function SquadAudit() {
               )}
             </div>
             {audit && (
-              <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-                <div className="label mb-4">Auto Formation</div>
-                <span className="badge badge-blue" style={{ fontSize: '0.88rem', padding: '5px 14px', fontFamily: 'var(--font-mono)' }}>
-                  {audit.formation}
-                </span>
+              <div className="flex gap-12 items-end wrap" style={{ marginLeft: 'auto' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={handleExportAuditCsv}
+                  title="Download this club's Squad Audit & replacement targets as CSV"
+                >
+                  <IconDownload size={14} /> Export Audit CSV
+                </button>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="label mb-4">Auto Formation</div>
+                  <span className="badge badge-blue" style={{ fontSize: '0.88rem', padding: '5px 14px', fontFamily: 'var(--font-mono)' }}>
+                    {audit.formation}
+                  </span>
+                </div>
               </div>
             )}
           </div>

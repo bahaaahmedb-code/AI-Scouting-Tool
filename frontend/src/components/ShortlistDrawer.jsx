@@ -79,10 +79,12 @@ export default function ShortlistDrawer({ open, onClose }) {
 
   function handleExportCsv() {
     if (!items.length) return
-    const header = 'Player,Club,Position,Age,Model Estimate (EUR),Listed Value (EUR)'
-    const rows = items.map(p =>
-      `"${p.name}","${p.club}",${p.position === 'G' ? 'GK' : p.position},${p.age ?? ''},${Math.round(p.estimated_value_eur || 0)},${Math.round(p.listed_value_eur || 0)}`
-    )
+    const header = 'Player,Club,Position,Age,Model Estimate (EUR),Listed Value (EUR),Value Gap (EUR)'
+    const rows = items.map(p => {
+      const est = Math.round(p.estimated_value_eur || 0)
+      const mkt = Math.round(p.listed_value_eur || 0)
+      return `"${p.name}","${p.club}",${p.position === 'G' ? 'GK' : p.position},${p.age ?? ''},${est},${mkt},${est - mkt}`
+    })
     const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

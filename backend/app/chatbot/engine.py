@@ -207,6 +207,8 @@ class ChatEngine:
 
         if not players and nlu.ABOUT_RE.search(ql) and not (nlu.DEFINE_RE.search(ql) and len(q.split()) <= 5):
             return self.about_project(q, F)
+        if not players and club_mention and nlu.SQUAD_AUDIT_RE.search(ql):
+            return self.club_audit_reply(club_mention, s, F)
         if not players and nlu.CLUB_AGG_RE.search(ql):
             return self.club_summary(q, F)
         if not players and nlu.POS_AGG_RE.search(ql):
@@ -532,6 +534,125 @@ class ChatEngine:
         )
         r.actions = [{"label": "Open About page", "href": "/about"}, {"label": "Open Evaluation Console", "href": "/eval"}]
         r.suggestions = ["How does the model work?", "Which season does the data cover?"]
+        return r
+
+    def club_audit_reply(self, club: str, s: Session, F: Facts) -> Reply:
+        from urllib.parse import quote
+        audit = self.st.club_audit(club)
+        r = Reply("squad_audit", F)
+        r.subintent = "club_audit"
+        F.allow("20", "100", "11", "3")
+
+        diags = audit.get("team_diagnostics") or []
+        vulns = audit.get("vulnerabilities") or []
+
+        # Build concise unit diagnostics summary
+        unit_bits = []
+        weakest_unit = None
+        for u in diags:
+            u_rank = int(u.get("epl_rank", 10))
+            u_total = int(u.get("n_clubs", 20))
+            u_name = u.get("title") or u.get("unit") or "Unit"
+            u_status = u.get("verdict") or "Solid Unit"
+            unit_bits.append(f"**{u_name}** (#{F.int(u_rank)}/{F.int(u_total)} — {u_status})")
+            if weakest_unit is None or u_rank > int(weakest_unit.get("epl_rank", 0)):
+                weakest_unit = u
+
+        lines = [
+            f"**{audit['club']} — 2025-26 Squad Audit & Best XI ({F.raw(audit['formation'])})**{self.syn()}",
+            (
+                f"Best XI Model Value: **{F.eur(audit['best_xi_est_eur'])}** "
+                f"(avg age **{F.num(audit['best_xi_avg_age'], 1)}**, "
+                f"avg Role Index **{F.num(audit['best_xi_avg_role_index'], 1)}/100**, "
+                f"qualified squad: **{F.int(audit['n_players'])}** players)."
+            ),
+        ]
+        if unit_bits:
+            lines.append("**Unit Diagnostics (vs. 20 EPL clubs):** " + " · ".join(unit_bits) + ".")
+        if weakest_unit:
+            w_name = weakest_unit.get("title") or weakest_unit.get("unit") or "Unit"
+            w_rank = int(weakest_unit.get("epl_rank", 10))
+            w_total = int(weakest_unit.get("n_clubs", 20))
+            w_status = weakest_unit.get("verdict") or "Watch"
+            lines.append(
+                f"Weakest unit: **{w_name}** (#{F.int(w_rank)}/{F.int(w_total)}, {w_status})."
+            )
+
+        if vulns:
+            lines.append(f"**{F.int(len(vulns))} Flagged Starter{'s' if len(vulns) != 1 else ''} & Top Positive-Fit Replacements:**")
+            rows = []
+            shortlist_ids = []
+            for v in vulns[:6]:
+                st = v["starter"]
+                top_rec = (v.get("replacements") or [None])[0]
+                if top_rec:
+                    shortlist_ids.append(int(top_rec["id"]))
+                    rec_txt = (
+                        f"{top_rec['name']} ({top_rec['club']}, age {F.int(top_rec['age'])}, "
+                        f"{F.pct(top_rec['similarity'] * 100.0, signed=False, nd=0)} fit, {F.eur(top_rec['estimated_value_eur'])})"
+                    )
+                else:
+                    rec_txt = "No match under default cap"
+                rows.append({
+                    "priority": v.get("priority", "Medium"),
+                    "starter": f"{st['name']} ({POS_NAME.get(st['position'], st['position'])}, age {F.int(st['age'])})",
+                    "role_index": f"{F.num(st['role_index'], 1)}/100",
+                    "starter_val": F.eur(st["estimated_value_eur"]),
+                    "replacement": rec_txt,
+                    "_id": int(st["id"]),
+                })
+            if shortlist_ids:
+                s.shortlist = shortlist_ids[:5]
+            r.table = {
+                "columns": [
+                    {"key": "priority", "label": "Priority"},
+                    {"key": "starter", "label": "Flagged Starter"},
+                    {"key": "role_index", "label": "Role Index"},
+                    {"key": "starter_val", "label": "Starter Est."},
+                    {"key": "replacement", "label": "#1 External Replacement"},
+                ],
+                "rows": rows,
+            }
+            top_v = vulns[0]
+            top_st = top_v["starter"]
+            top_rep = (top_v.get("replacements") or [None])[0]
+            if top_rep:
+                r.suggestions = [
+                    f"Compare {top_st['name']} and {top_rep['name']}",
+                    f"What contract should we offer {top_st['name']}?",
+                ]
+            else:
+                r.suggestions = [
+                    f"Find cheaper alternatives to {top_st['name']}",
+                    f"What contract should we offer {top_st['name']}?",
+                ]
+        else:
+            lines.append("No high-risk starters flagged — all Best XI starters are in strong prime/developing form.")
+            rows = []
+            for p in (audit.get("starters") or [])[:11]:
+                rows.append({
+                    "pos": POS_NAME.get(p["position"], p["position"]),
+                    "player": p["name"],
+                    "age": F.int(p["age"]),
+                    "role_index": f"{F.num(p['role_index'], 1)}/100",
+                    "est": F.eur(p["estimated_value_eur"]),
+                    "_id": int(p["id"]),
+                })
+            r.table = {
+                "columns": [
+                    {"key": "pos", "label": "Pos"},
+                    {"key": "player", "label": "Best XI Starter"},
+                    {"key": "age", "label": "Age"},
+                    {"key": "role_index", "label": "Role Index"},
+                    {"key": "est", "label": "Model Estimate"},
+                ],
+                "rows": rows,
+            }
+            r.suggestions = ["Which club has the highest squad value?", "Who are the most undervalued midfielders?"]
+
+        r.text = "\n\n".join(lines)
+        r.actions = [{"label": f"Open {audit['club']} Squad Audit", "href": f"/squad?club={quote(audit['club'])}"}]
+        s.table = r.table
         return r
 
     def club_summary(self, q: str, F: Facts) -> Reply:
